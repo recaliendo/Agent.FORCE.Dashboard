@@ -1249,6 +1249,11 @@ p {
   overflow-wrap: anywhere;
 }
 
+.qwen-message .qwen-state-copy {
+  color: var(--text-soft);
+  font-size: 0.78rem;
+}
+
 .qwen-user {
   justify-self: end;
   border-color: rgba(96,242,166,0.22);
@@ -1266,14 +1271,48 @@ p {
   background: rgba(246,199,96,0.07);
 }
 
-.qwen-message.streaming {
+.qwen-message.state-connecting,
+.qwen-message.state-prompt-evaluating,
+.qwen-message.state-generating {
   border-color: rgba(96,242,166,0.34);
   box-shadow: 0 0 28px rgba(96,242,166,0.1), inset 0 1px 0 rgba(255,255,255,0.08);
 }
 
-.qwen-message.error {
+.qwen-message.state-cancelled {
+  border-color: rgba(246,199,96,0.32);
+  background: rgba(246,199,96,0.07);
+}
+
+.qwen-message.state-auth-failed,
+.qwen-message.state-inactivity-timeout,
+.qwen-message.state-parse-error,
+.qwen-message.state-server-unavailable {
   border-color: rgba(255,113,113,0.34);
   background: rgba(255,113,113,0.08);
+}
+
+.qwen-stream-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-height: 20px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(103,214,255,0.12);
+  color: var(--text-soft);
+  font-size: 0.72rem;
+}
+
+.qwen-stream-meta strong {
+  color: var(--accent-green);
+}
+
+.qwen-stream-meta span {
+  color: var(--text-soft);
+  font-size: inherit;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .qwen-composer {
@@ -1304,6 +1343,17 @@ p {
 .qwen-composer button {
   min-width: 124px;
   justify-content: center;
+}
+
+.qwen-cancel-action {
+  border-color: rgba(246,199,96,0.36);
+  color: #fff4cf;
+  background: rgba(246,199,96,0.11);
+}
+
+.qwen-cancel-action:hover {
+  border-color: rgba(246,199,96,0.58);
+  background: rgba(246,199,96,0.18);
 }
 
 .qwen-quick-prompts {

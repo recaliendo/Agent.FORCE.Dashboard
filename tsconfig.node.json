@@ -10,6 +10,7 @@
     "outDir": "dist-electron",
     "rootDir": ".",
     "strict": true,
+    "ignoreDeprecations": "6.0",
     "skipLibCheck": true
   },
   "include": ["vite.config.ts", "electron/**/*.ts"]

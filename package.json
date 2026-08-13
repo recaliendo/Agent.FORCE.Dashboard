@@ -8,10 +8,13 @@
   "scripts": {
     "dev": "vite",
     "electron:compile": "tsc -p tsconfig.node.json",
-    "build": "tsc && vite build && npm run electron:compile",
+    "qwen:setup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-local-qwen.ps1",
+    "qwen:start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-local-qwen.ps1",
+    "qwen:verify": "node scripts/verify-local-qwen.mjs",
+    "build": "tsc && vite build && tsc -p tsconfig.node.json",
     "electron:dev": "concurrently -k \"vite --host 127.0.0.1\" \"tsc -p tsconfig.node.json --watch\" \"wait-on tcp:5173 dist-electron/electron/main.js && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
-    "desktop:preview": "npm run build && electron .",
-    "dist": "npm run build && electron-builder",
+    "desktop:preview": "tsc && vite build && tsc -p tsconfig.node.json && electron .",
+    "dist": "tsc && vite build && tsc -p tsconfig.node.json && electron-builder",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.node.json --noEmit"
   },
   "dependencies": {

@@ -1,0 +1,64 @@
+flowchart LR
+  subgraph Dev["Development and build"]
+    PNPM["pnpm scripts<br/>package.json:8-18"]
+    VITE["Vite renderer server/build<br/>vite.config.ts:4-14"]
+    TSC["Electron TypeScript compile<br/>tsconfig.node.json:2-16"]
+    BUILDER["electron-builder installers<br/>package.json:38-57"]
+    PNPM --> VITE
+    PNPM --> TSC
+    VITE --> BUILDER
+    TSC --> BUILDER
+  end
+
+  subgraph Desktop["Agent FORCE Electron application"]
+    MAIN["Electron main<br/>config, IPC, HTTP, OS actions<br/>electron/main.ts:18-287"]
+    PRELOAD["Context-isolated preload bridge<br/>electron/preload.ts:1-20"]
+    RENDERER["React renderer<br/>App, registry, rules, localStorage<br/>src/main.tsx:1-10<br/>src/App.tsx:35-170"]
+    STORAGE[("Renderer localStorage<br/>reports, Council, checks, activity<br/>src/storage.ts:24-38<br/>src/council/councilStorage.ts:4-29")]
+    MAIN <-->|"invoke/response<br/>agent-force:*<br/>electron/main.ts:161-287"| PRELOAD
+    PRELOAD <-->|"window.agentForce<br/>per-request stream events<br/>electron/preload.ts:3-19"| RENDERER
+    RENDERER <--> STORAGE
+  end
+
+  subgraph Inference["Inference provider"]
+    RUNTIME["Managed llama-server child<br/>OpenAI-compatible API<br/>electron/localLlmRuntime.ts:69-122"]
+    MODEL[("Qwen UD-Q4_K_M GGUF<br/>8192 context, 12 GPU layers<br/>electron/localLlmRuntime.ts:36-45<br/>electron/localLlmRuntime.ts:81-103")]
+    GPU["RTX 4060 host GPU<br/>configured offload: 12 layers<br/>electron/localLlmRuntime.ts:86-87"]
+    HOSTED["Hosted OpenAI-compatible provider<br/>LLM_BASE_URL<br/>electron/main.ts:36-47"]
+    RUNTIME --> MODEL
+    RUNTIME --> GPU
+  end
+
+  MAIN -->|"GET /models, POST /chat/completions<br/>Bearer in main only<br/>electron/main.ts:57-119"| RUNTIME
+  MAIN -.->|"same HTTP transport when non-loopback<br/>electron/localLlmRuntime.ts:155-162"| HOSTED
+  MAIN -->|"spawn/stop local child<br/>electron/localLlmRuntime.ts:108-121<br/>electron/localLlmRuntime.ts:165-169"| RUNTIME
+
+  subgraph ExternalActions["External action boundary"]
+    SHELL["OS URL/path shell<br/>electron/main.ts:152-181"]
+    CMD["Optional arbitrary command child<br/>electron/main.ts:183-204"]
+  end
+  MAIN --> SHELL
+  MAIN --> CMD
+
+  subgraph Connectors["Current connector representation"]
+    SEED["Static ProjectConnector records<br/>src/data/seedProjects.ts:3-415"]
+    CHECK["Reference-presence check only<br/>src/App.tsx:684-708"]
+    OPEN["Generic URL/path/command open<br/>src/App.tsx:1694-1707"]
+    NOMCP["No MCP client/adapter/tool registry<br/>src/types.ts:26-38<br/>package.json:20-36"]
+    SEED --> CHECK
+    SEED --> OPEN
+    NOMCP -.-> SEED
+  end
+  RENDERER --> SEED
+  OPEN --> PRELOAD
+
+  subgraph Synthetic["Renderer-generated operational content"]
+    MENTOR["Deterministic mentor rules<br/>src/mentorEngine.ts:4-114"]
+    COUNCIL["Deterministic Council rules<br/>src/council/councilEngine.ts:534-570"]
+    REPORT["Deterministic report templates<br/>src/reportEngine.ts:55-151"]
+  end
+  RENDERER --> MENTOR
+  RENDERER --> COUNCIL
+  RENDERER --> REPORT
+  COUNCIL --> STORAGE
+  REPORT --> STORAGE

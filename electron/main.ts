@@ -16,6 +16,13 @@ type ChatMessage = {
   content: string;
 };
 
+type ActiveQwenStream = {
+  controller: AbortController;
+  senderId: number;
+};
+
+const activeQwenStreams = new Map<string, ActiveQwenStream>();
+
 function loadDotEnv() {
   const envPath = path.resolve(process.cwd(), '.env');
   if (!existsSync(envPath)) return;
@@ -39,12 +46,16 @@ function getQwenConfig() {
   const apiKey = process.env.LLM_API_KEY || process.env.LLAMA_API_KEY || '';
   const modelName = process.env.LLM_MODEL_NAME || 'Qwen/Qwen3.6-35B-A3B';
   const timeoutSeconds = Number(process.env.LLM_TIMEOUT_SECONDS || '5');
+  const inferenceConnectSeconds = Number(process.env.LLM_INFERENCE_CONNECT_TIMEOUT_SECONDS || '10');
+  const inferenceInactivitySeconds = Number(process.env.LLM_INFERENCE_INACTIVITY_TIMEOUT_SECONDS || '30');
 
   return {
     baseUrl,
     apiKey,
     modelName,
-    timeoutMs: Number.isFinite(timeoutSeconds) ? Math.max(1, timeoutSeconds) * 1000 : 5000
+    timeoutMs: Number.isFinite(timeoutSeconds) ? Math.max(1, timeoutSeconds) * 1000 : 5000,
+    inferenceConnectTimeoutMs: Number.isFinite(inferenceConnectSeconds) ? Math.max(1, inferenceConnectSeconds) * 1000 : 10000,
+    inferenceInactivityTimeoutMs: Number.isFinite(inferenceInactivitySeconds) ? Math.max(5, inferenceInactivitySeconds) * 1000 : 30000
   };
 }
 
@@ -65,16 +76,20 @@ function getLlmHeaders(apiKey: string) {
   return headers;
 }
 
-function withTimeout(timeoutMs: number) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  return { controller, timeout };
-}
-
-async function qwenFetch(pathname: string, init: RequestInit = {}) {
+async function qwenFetch(
+  pathname: string,
+  init: RequestInit = {},
+  options: { controller?: AbortController; connectTimeoutMs?: number } = {}
+) {
   const config = getQwenConfig();
   assertSafeLlmBaseUrl(config.baseUrl);
-  const { controller, timeout } = withTimeout(config.timeoutMs);
+  const controller = options.controller ?? new AbortController();
+  const connectTimeoutMs = options.connectTimeoutMs ?? config.timeoutMs;
+  let connectTimedOut = false;
+  const timeout = setTimeout(() => {
+    connectTimedOut = true;
+    controller.abort();
+  }, connectTimeoutMs);
 
   try {
     const response = await fetch(`${config.baseUrl}/${pathname.replace(/^\/+/, '')}`, {
@@ -87,16 +102,28 @@ async function qwenFetch(pathname: string, init: RequestInit = {}) {
     });
 
     if (!response.ok) {
-      const body = await response.text().catch(() => '');
+      let body = '';
+      try {
+        body = await response.text();
+      } catch (error) {
+        body = `Response body unavailable: ${error instanceof Error ? error.message : 'unknown read error'}`;
+      }
+      if (response.status === 401) {
+        throw new Error('AUTH_FAILED: The inference provider rejected the configured credential.');
+      }
       throw new Error(`LLM endpoint returned HTTP ${response.status}${body ? `: ${body}` : ''}`);
     }
 
     return response;
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error(`LLM endpoint timed out after ${config.timeoutMs / 1000}s at ${config.baseUrl}`);
+    if (connectTimedOut) {
+      throw new Error(`SERVER_UNAVAILABLE: Connection timed out after ${connectTimeoutMs / 1000}s.`);
+    }
+    if (controller.signal.aborted) {
+      throw new Error('CANCELLED: The inference request was cancelled.');
     }
     if (error instanceof Error) {
+      if (error.message.startsWith('AUTH_FAILED:') || error.message.startsWith('LLM endpoint returned HTTP')) throw error;
       throw new Error(`LLM endpoint failed at ${config.baseUrl}: ${error.message}`);
     }
     throw new Error(`LLM endpoint failed at ${config.baseUrl}.`);
@@ -105,9 +132,8 @@ async function qwenFetch(pathname: string, init: RequestInit = {}) {
   }
 }
 
-async function qwenChatCompletion(messages: ChatMessage[], stream = false) {
+async function qwenChatCompletion(messages: ChatMessage[], stream = false, controller?: AbortController) {
   const config = getQwenConfig();
-  await ensureManagedLocalLlm(config);
   const response = await qwenFetch('chat/completions', {
     method: 'POST',
     body: JSON.stringify({
@@ -118,6 +144,9 @@ async function qwenChatCompletion(messages: ChatMessage[], stream = false) {
       chat_template_kwargs: { enable_thinking: false },
       stream
     })
+  }, {
+    controller,
+    connectTimeoutMs: config.inferenceConnectTimeoutMs
   });
   return response;
 }
@@ -223,7 +252,6 @@ ipcMain.handle('agent-force:qwen-config', async () => {
 
 ipcMain.handle('agent-force:qwen-health', async () => {
   try {
-    await ensureManagedLocalLlm(getQwenConfig());
     await qwenFetch('models', { method: 'GET' });
     const config = getQwenConfig();
     return { ok: true, baseUrl: config.baseUrl, modelName: config.modelName };
@@ -247,8 +275,25 @@ ipcMain.handle('agent-force:qwen-chat', async (_event, messages: ChatMessage[]) 
 });
 
 ipcMain.handle('agent-force:qwen-stream-chat', async (event, requestId: string, messages: ChatMessage[]) => {
+  const controller = new AbortController();
+  const stream: ActiveQwenStream = { controller, senderId: event.sender.id };
+  const existing = activeQwenStreams.get(requestId);
+  if (existing) existing.controller.abort();
+  activeQwenStreams.set(requestId, stream);
+  const config = getQwenConfig();
+  let inactivityTimedOut = false;
+  let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const resetInactivityTimeout = () => {
+    if (inactivityTimer) clearTimeout(inactivityTimer);
+    inactivityTimer = setTimeout(() => {
+      inactivityTimedOut = true;
+      controller.abort();
+    }, config.inferenceInactivityTimeoutMs);
+  };
+
   try {
-    const response = await qwenChatCompletion(messages, true);
+    const response = await qwenChatCompletion(messages, true, controller);
     const reader = (response.body as any)?.getReader?.();
     if (!reader) {
       throw new Error('LLM endpoint did not provide a readable stream.');
@@ -263,9 +308,11 @@ ipcMain.handle('agent-force:qwen-stream-chat', async (event, requestId: string, 
       const chunk = JSON.parse(data);
       const token = chunk?.choices?.[0]?.delta?.content;
       if (typeof token === 'string' && token) {
+        resetInactivityTimeout();
         event.sender.send(`agent-force:qwen-stream:${requestId}`, { type: 'token', token });
       }
     });
+    resetInactivityTimeout();
 
     while (true) {
       const { value, done } = await reader.read();
@@ -278,10 +325,26 @@ ipcMain.handle('agent-force:qwen-stream-chat', async (event, requestId: string, 
     event.sender.send(`agent-force:qwen-stream:${requestId}`, { type: 'done' });
     return { ok: true };
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Qwen stream request failed.';
-    event.sender.send(`agent-force:qwen-stream:${requestId}`, { type: 'error', error: message });
+    const message = inactivityTimedOut
+      ? `INACTIVITY_TIMEOUT: No visible token arrived for ${config.inferenceInactivityTimeoutMs / 1000}s.`
+      : error instanceof SyntaxError
+        ? `PARSE_ERROR: ${error.message}`
+        : error instanceof Error
+          ? error.message
+          : 'Qwen stream request failed.';
+    if (!event.sender.isDestroyed()) {
+      event.sender.send(`agent-force:qwen-stream:${requestId}`, { type: 'error', error: message });
+    }
     return { ok: false, error: message };
+  } finally {
+    if (inactivityTimer) clearTimeout(inactivityTimer);
+    if (activeQwenStreams.get(requestId) === stream) activeQwenStreams.delete(requestId);
   }
+});
+
+ipcMain.on('agent-force:qwen-cancel', (event, requestId: string) => {
+  const stream = activeQwenStreams.get(requestId);
+  if (stream?.senderId === event.sender.id) stream.controller.abort();
 });
 
 app.whenReady().then(() => {

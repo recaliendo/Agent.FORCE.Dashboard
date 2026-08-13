@@ -10,11 +10,22 @@ contextBridge.exposeInMainWorld('agentForce', {
   qwenChat: (messages: unknown[]) => ipcRenderer.invoke('agent-force:qwen-chat', messages),
   qwenStreamChat: (requestId: string, messages: unknown[], onEvent: (event: unknown) => void) => {
     const channel = `agent-force:qwen-stream:${requestId}`;
-    const listener = (_event: Electron.IpcRendererEvent, payload: unknown) => onEvent(payload);
+    let settled = false;
+    const listener = (_event: Electron.IpcRendererEvent, payload: unknown) => {
+      if (payload && typeof payload === 'object' && 'type' in payload) {
+        const type = (payload as { type?: unknown }).type;
+        if (type === 'done' || type === 'error') settled = true;
+      }
+      onEvent(payload);
+    };
     ipcRenderer.on(channel, listener);
     ipcRenderer.invoke('agent-force:qwen-stream-chat', requestId, messages).catch((error) => {
+      settled = true;
       onEvent({ type: 'error', error: error instanceof Error ? error.message : 'Qwen stream request failed.' });
     });
-    return () => ipcRenderer.removeListener(channel, listener);
+    return () => {
+      if (!settled) ipcRenderer.send('agent-force:qwen-cancel', requestId);
+      ipcRenderer.removeListener(channel, listener);
+    };
   }
 });

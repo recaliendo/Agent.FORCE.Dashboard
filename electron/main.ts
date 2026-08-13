@@ -113,6 +113,7 @@ async function qwenChatCompletion(messages: ChatMessage[], stream = false) {
       model: config.modelName,
       messages,
       temperature: 0.2,
+      max_tokens: 1024,
       chat_template_kwargs: { enable_thinking: false },
       stream
     })

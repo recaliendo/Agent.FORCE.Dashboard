@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ensureManagedLocalLlm, getManagedLocalLlmState, stopManagedLocalLlm } from './localLlmRuntime.js';
+import { createSseDataParser } from './sseParser.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -253,31 +254,26 @@ ipcMain.handle('agent-force:qwen-stream-chat', async (event, requestId: string, 
       throw new Error('LLM endpoint did not provide a readable stream.');
     }
 
-    const decoder = new TextDecoder();
-    let buffer = '';
+    let sawDone = false;
+    const parser = createSseDataParser((data) => {
+      if (data === '[DONE]') {
+        sawDone = true;
+        return;
+      }
+      const chunk = JSON.parse(data);
+      const token = chunk?.choices?.[0]?.delta?.content;
+      if (typeof token === 'string' && token) {
+        event.sender.send(`agent-force:qwen-stream:${requestId}`, { type: 'token', token });
+      }
+    });
 
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split(/\r?\n/);
-      buffer = lines.pop() ?? '';
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith('data:')) continue;
-        const data = trimmed.slice(5).trim();
-        if (data === '[DONE]') {
-          event.sender.send(`agent-force:qwen-stream:${requestId}`, { type: 'done' });
-          return { ok: true };
-        }
-        const chunk = JSON.parse(data);
-        const token = chunk?.choices?.[0]?.delta?.content;
-        if (typeof token === 'string' && token) {
-          event.sender.send(`agent-force:qwen-stream:${requestId}`, { type: 'token', token });
-        }
-      }
+      parser.push(value);
+      if (sawDone) break;
     }
+    parser.finish();
 
     event.sender.send(`agent-force:qwen-stream:${requestId}`, { type: 'done' });
     return { ok: true };

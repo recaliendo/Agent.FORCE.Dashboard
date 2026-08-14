@@ -21,5 +21,14 @@ These items were observed but deliberately left outside this repair.
    but does not report model-load percentage.
 8. Review endpoint policy before binding beyond loopback. The current SSRF guard and
    loopback default are intentional security boundaries.
-9. Add a deterministic mentor-action card that does not wait for inference, then stream
-   Qwen's rationale into that already-useful card.
+9. Connect Qwen rationale to the reserved deterministic action-card slot after the typed
+   mentor gateway and IPC contract are approved.
+10. Treat the Halo repository as navigation-only until an explicit content-filter and
+    data-minimization policy is implemented. The user-supplied brief flags possible personal
+    information; repository contents were not inspected during reconciliation.
+11. Review the tracked TalentQuest `.env` file without exposing values, rotate any live
+    credentials, and decide whether repository history remediation is required.
+12. Decide whether to purge deleted character artwork from Git history. This requires a
+    coordinated destructive history rewrite and downstream clone migration.
+13. Replace remaining synthetic charts with time-series observations only when timestamped
+    source data exists; until then, keep them labeled as derived readiness views.

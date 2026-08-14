@@ -14,3 +14,7 @@
 
 Every assistant lifecycle bubble also displays elapsed seconds and the number of content
 events received. The panel never renders an empty assistant bubble or a bare ellipsis.
+
+Assistant content is rendered through the incremental Markdown pipeline. Completed lines
+become headings, lists, emphasis, inline code, or fenced code while the unfinished line
+remains a lightweight pending block. No provider HTML is injected into the document.

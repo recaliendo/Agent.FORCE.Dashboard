@@ -28,6 +28,10 @@ function envNumber(name: string, fallback: number, minimum = 0) {
   return Number.isFinite(value) ? Math.max(minimum, Math.floor(value)) : fallback;
 }
 
+function envValue(name: string, fallback: string) {
+  return process.env[name]?.trim() || fallback;
+}
+
 function isLoopbackUrl(baseUrl: string) {
   const hostname = new URL(baseUrl).hostname.toLowerCase();
   return hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1';
@@ -78,19 +82,29 @@ function launchManagedServer(options: ManagedLlmOptions) {
   const endpoint = new URL(options.baseUrl);
   const port = endpoint.port || (endpoint.protocol === 'https:' ? '443' : '80');
   const host = endpoint.hostname === 'localhost' || endpoint.hostname === '::1' ? '127.0.0.1' : endpoint.hostname;
+  const cpuMoeLayers = envNumber('LLAMA_CPU_MOE_LAYERS', 32, 0);
+  const loadMode = envValue('LLAMA_LOAD_MODE', 'none');
+  const specType = envValue('LLAMA_SPEC_TYPE', 'none');
   const args = [
     '--model', paths.model,
     '--host', host,
     '--port', port,
     '--alias', options.modelName,
     '--ctx-size', String(envNumber('LLAMA_CONTEXT_SIZE', 8192, 512)),
-    '--n-gpu-layers', String(envNumber('LLAMA_GPU_LAYERS', 12, 0)),
+    '--n-gpu-layers', envValue('LLAMA_GPU_LAYERS', 'all'),
     '--parallel', '1',
     '--flash-attn', 'on',
     '--cache-type-k', 'q8_0',
     '--cache-type-v', 'q8_0',
+    '--load-mode', loadMode,
     '--jinja'
   ];
+
+  if (cpuMoeLayers > 0) args.push('--n-cpu-moe', String(cpuMoeLayers));
+  if (specType !== 'none') {
+    args.push('--spec-type', specType);
+    args.push('--spec-draft-n-max', String(envNumber('LLAMA_SPEC_DRAFT_N_MAX', 2, 1)));
+  }
 
   if (paths.mmproj) {
     if (!existsSync(paths.mmproj)) {

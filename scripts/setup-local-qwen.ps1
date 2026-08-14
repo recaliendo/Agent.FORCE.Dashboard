@@ -139,13 +139,18 @@ Set-DotEnvValue 'LLM_BASE_URL' 'http://127.0.0.1:8080/v1'
 Set-DotEnvValue 'LLM_MODEL_NAME' 'Qwen/Qwen3.6-35B-A3B'
 Set-DotEnvValue 'LLM_API_KEY' $apiKey
 Set-DotEnvValue 'LLM_TIMEOUT_SECONDS' '5'
+Set-DotEnvValue 'LLM_MAX_OUTPUT_TOKENS' '512'
 Set-DotEnvValue 'LLM_AUTOSTART' 'true'
 Set-DotEnvValue 'LLM_STARTUP_TIMEOUT_SECONDS' '180'
 Set-DotEnvValue 'LLAMA_RUNTIME_ROOT' $RuntimeRoot
 Set-DotEnvValue 'LLAMA_SERVER_PATH' $serverPath
 Set-DotEnvValue 'LLAMA_MODEL_PATH' $modelPath
 Set-DotEnvValue 'LLAMA_API_KEY_FILE' $apiKeyFile
-Set-DotEnvValue 'LLAMA_GPU_LAYERS' '12'
+Set-DotEnvValue 'LLAMA_GPU_LAYERS' 'all'
+Set-DotEnvValue 'LLAMA_CPU_MOE_LAYERS' '32'
+Set-DotEnvValue 'LLAMA_LOAD_MODE' 'none'
+Set-DotEnvValue 'LLAMA_SPEC_TYPE' 'none'
+Set-DotEnvValue 'LLAMA_SPEC_DRAFT_N_MAX' '2'
 Set-DotEnvValue 'LLAMA_CONTEXT_SIZE' '8192'
 
 Write-Host ''

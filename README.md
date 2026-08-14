@@ -152,10 +152,20 @@ LLM_BASE_URL=http://127.0.0.1:8080/v1
 LLM_MODEL_NAME=Qwen/Qwen3.6-35B-A3B
 LLM_API_KEY=
 LLM_TIMEOUT_SECONDS=5
+LLM_MAX_OUTPUT_TOKENS=512
 LLM_AUTOSTART=true
-LLAMA_GPU_LAYERS=12
+LLAMA_GPU_LAYERS=all
+LLAMA_CPU_MOE_LAYERS=32
+LLAMA_LOAD_MODE=none
+LLAMA_SPEC_TYPE=none
 LLAMA_CONTEXT_SIZE=8192
 ```
+
+The default local profile is tuned for an 8 GB RTX 4060 Laptop GPU: attention and
+shared tensors remain on the GPU, the first 32 sparse expert layers remain in system
+RAM, and eager loading removes the long first-prompt paging penalty. Model startup is
+slower than memory mapping, but measured chat latency is substantially lower and more
+consistent once the endpoint reports ready.
 
 Run `npm run qwen:start` only when you want to keep the model server running independently of the dashboard. Set `LLM_AUTOSTART=false` for an externally managed local server, or change `LLM_BASE_URL`, `LLM_API_KEY`, and `LLM_MODEL_NAME` to use any hosted OpenAI-compatible provider without code changes.
 

@@ -17,20 +17,30 @@ if (-not (Test-Path -LiteralPath $env:LLAMA_SERVER_PATH)) { throw "Missing llama
 if (-not (Test-Path -LiteralPath $env:LLAMA_MODEL_PATH)) { throw "Missing Qwen model at $env:LLAMA_MODEL_PATH" }
 
 $endpoint = [uri]$env:LLM_BASE_URL
+$gpuLayers = if ($env:LLAMA_GPU_LAYERS) { $env:LLAMA_GPU_LAYERS } else { 'all' }
+$cpuMoeLayers = if ($env:LLAMA_CPU_MOE_LAYERS) { $env:LLAMA_CPU_MOE_LAYERS } else { '32' }
+$loadMode = if ($env:LLAMA_LOAD_MODE) { $env:LLAMA_LOAD_MODE } else { 'none' }
 $args = @(
   '--model', $env:LLAMA_MODEL_PATH,
   '--host', '127.0.0.1',
   '--port', $endpoint.Port,
   '--alias', $env:LLM_MODEL_NAME,
   '--ctx-size', $env:LLAMA_CONTEXT_SIZE,
-  '--n-gpu-layers', $env:LLAMA_GPU_LAYERS,
+  '--n-gpu-layers', $gpuLayers,
+  '--n-cpu-moe', $cpuMoeLayers,
   '--parallel', '1',
   '--flash-attn', 'on',
   '--cache-type-k', 'q8_0',
   '--cache-type-v', 'q8_0',
+  '--load-mode', $loadMode,
   '--jinja',
   '--api-key-file', $env:LLAMA_API_KEY_FILE
 )
+
+if ($env:LLAMA_SPEC_TYPE -and $env:LLAMA_SPEC_TYPE -ne 'none') {
+  $draftMax = if ($env:LLAMA_SPEC_DRAFT_N_MAX) { $env:LLAMA_SPEC_DRAFT_N_MAX } else { '2' }
+  $args += @('--spec-type', $env:LLAMA_SPEC_TYPE, '--spec-draft-n-max', $draftMax)
+}
 
 if ($WaitForReady) {
   & $env:LLAMA_SERVER_PATH @args

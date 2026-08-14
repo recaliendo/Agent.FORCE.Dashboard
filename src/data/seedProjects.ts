@@ -2,14 +2,63 @@ import type { AgentProject } from '../types';
 
 export const seedProjects: AgentProject[] = [
   {
+    id: 'talentquest',
+    name: 'TalentQuest',
+    subtitle: 'Talent intelligence and people analytics',
+    callsign: 'TALENTQUEST',
+    category: 'Talent Intelligence',
+    status: 'Unknown',
+    priority: 'Unknown',
+    objective: 'Provide secure talent data ingestion, explainable talent mapping, and human-centered retention and coaching plans.',
+    missionBrief: 'A documented enterprise talent-intelligence platform for managers, HR teams, and executives.',
+    customerNeed: 'Organizations need explainable visibility into performance, impact, retention risk, development actions, and people cost.',
+    successCriteria: [
+      'Insights show key drivers, confidence, completeness, and contributing data sources.',
+      'Role-based experiences protect sensitive data.',
+      'Recommendations remain supportive decision support rather than automated judgment.'
+    ],
+    currentBlockers: [],
+    repository: {
+      provider: 'github',
+      url: 'https://github.com/caliendohomes-rgb/essence-map-desk',
+      label: 'TalentQuest Repository',
+      reachability: 'verified'
+    },
+    accent: 'cyan',
+    telemetry: {
+      readiness: 0,
+      automation: 0,
+      risk: 0,
+      coverage: 0
+    },
+    tags: ['Talent Intelligence', 'People Analytics', 'Explainability', 'Enterprise SaaS'],
+    connectors: [],
+    agents: [],
+    launchActions: [],
+    nextActions: [],
+    safetyNotes: [
+      'Treat recommendations as decision support, not automated judgment.',
+      'Protect sensitive people data with role-based access and audit controls.'
+    ],
+    unknownFields: [
+      'status',
+      'priority',
+      'connectors',
+      'agents',
+      'launchActions',
+      'currentBlockers'
+    ]
+  },
+  {
     id: 'portfolio-command-center',
-    name: 'Portfolio Command Center',
-    callsign: 'HOLO-PORTFOLIO',
-    category: 'Personal Brand',
+    name: 'Halo Portfolio Agent',
+    subtitle: 'Portfolio operations workspace',
+    callsign: 'HALO-PORTFOLIO',
+    category: 'Portfolio Operations',
     status: 'Ready',
     priority: 'High',
-    objective: 'Operate portfolio website QA, content hierarchy, readability, and conversion optimization.',
-    missionBrief: 'Dedicated project cockpit for the public portfolio experience.',
+    objective: 'Operate portfolio QA, content hierarchy, readability, and presentation quality.',
+    missionBrief: 'Dedicated project cockpit for portfolio operations.',
     customerNeed: 'Visitors need to understand the portfolio value and supporting evidence quickly.',
     successCriteria: [
       'The portfolio scan path is clear in under one minute.',
@@ -20,15 +69,12 @@ export const seedProjects: AgentProject[] = [
       'Repository connector is not configured.',
       'Portfolio QA checklist has not been added.'
     ],
-    repoUrl: 'https://richardecaliendo.com/',
-    repoReferences: [
-      {
-        id: 'portfolio-live-reference',
-        label: 'Live Portfolio',
-        url: 'https://richardecaliendo.com/',
-        description: 'Public portfolio source.'
-      }
-    ],
+    repository: {
+      provider: 'github',
+      url: 'https://github.com/caliendohomes-rgb/Job.SEARCH.AGENT',
+      label: 'Halo Portfolio Agent',
+      reachability: 'verified'
+    },
     safetyNotes: ['Public content must stay consistent with verified source material.'],
     accent: 'violet',
     telemetry: {
@@ -38,34 +84,8 @@ export const seedProjects: AgentProject[] = [
       coverage: 76
     },
     tags: ['Portfolio', 'UX', 'Readability', 'SEO'],
-    connectors: [
-      {
-        id: 'portfolio-site',
-        type: 'custom',
-        label: 'Live Portfolio',
-        url: 'https://richardecaliendo.com/',
-        status: 'connected',
-        environment: 'production',
-        description: 'Live portfolio reviewed by portfolio QA agents.'
-      },
-      {
-        id: 'portfolio-repo',
-        type: 'github',
-        label: 'Portfolio Repository',
-        status: 'needs_setup',
-        environment: 'development',
-        description: 'Add the source repository URL when configured.'
-      }
-    ],
-    launchActions: [
-      {
-        id: 'site',
-        label: 'Open Portfolio Site',
-        type: 'url',
-        target: 'https://richardecaliendo.com/',
-        description: 'Open the public portfolio website.'
-      }
-    ],
+    connectors: [],
+    launchActions: [],
     nextActions: [
       'Add a portfolio QA checklist.',
       'Add a website readability and negative-space audit panel.',
@@ -87,7 +107,8 @@ export const seedProjects: AgentProject[] = [
   },
   {
     id: 'standardcraft-build-swarm',
-    name: 'StandardCraft Build Swarm',
+    name: 'StandardCraft',
+    subtitle: 'NYS standards-aligned classroom resources',
     callsign: 'EDU-FORGE',
     category: 'SaaS Product Build',
     status: 'Building',
@@ -104,7 +125,12 @@ export const seedProjects: AgentProject[] = [
       'Data and billing connector setup needs review.',
       'Regression tests for credit and download flows are not represented in the cockpit.'
     ],
-    repoUrl: 'https://standardcraftny.com',
+    repository: {
+      provider: 'github',
+      url: 'https://github.com/caliendohomes-rgb/standardcraft',
+      label: 'caliendohomes-rgb/standardcraft',
+      reachability: 'verified'
+    },
     repoReferences: [
       {
         id: 'standardcraft-live-site',
@@ -122,41 +148,7 @@ export const seedProjects: AgentProject[] = [
       coverage: 71
     },
     tags: ['StandardCraft', 'NYS Standards', 'Billing', 'Data', 'Deployment'],
-    connectors: [
-      {
-        id: 'standardcraft-site',
-        type: 'netlify',
-        label: 'StandardCraft Site',
-        url: 'https://standardcraftny.com',
-        status: 'connected',
-        environment: 'production',
-        description: 'Production web presence and deploy surface.'
-      },
-      {
-        id: 'standardcraft-data',
-        type: 'supabase',
-        label: 'Data Project',
-        status: 'attention',
-        environment: 'production',
-        description: 'Database and auth connector reference. Store dashboard links only.'
-      },
-      {
-        id: 'standardcraft-billing',
-        type: 'stripe',
-        label: 'Billing',
-        status: 'needs_setup',
-        environment: 'test',
-        description: 'Payment workflow connector reference. Store dashboard links only.'
-      },
-      {
-        id: 'standardcraft-repo',
-        type: 'github',
-        label: 'Build Repository',
-        status: 'unknown',
-        environment: 'development',
-        description: 'Add the GitHub repository URL when connected.'
-      }
-    ],
+    connectors: [],
     launchActions: [
       {
         id: 'standardcraft-site',
@@ -188,6 +180,7 @@ export const seedProjects: AgentProject[] = [
   {
     id: 'legal-ops-console',
     name: 'DivorceAgent',
+    subtitle: 'Document and case operations',
     callsign: 'EVIDENCE-DECK',
     category: 'Document and Case Operations',
     status: 'Planning',

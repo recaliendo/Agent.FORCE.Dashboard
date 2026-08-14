@@ -1,6 +1,8 @@
 export type AgentOrigin = 'Codex' | 'Claude Code' | 'Hybrid' | 'Python' | 'Node' | 'Local' | 'Manual' | 'Other';
 
-export type ProjectStatus = 'Ready' | 'Planning' | 'Building' | 'Needs QA' | 'Needs Attention' | 'Paused' | 'Archived';
+export type ProjectStatus = 'Ready' | 'Planning' | 'Building' | 'Needs QA' | 'Needs Attention' | 'Paused' | 'Archived' | 'Unknown';
+
+export type ProjectPriority = 'Critical' | 'High' | 'Medium' | 'Low' | 'Unknown';
 
 export type AgentStatus = 'Active' | 'Needs Configuration' | 'Paused' | 'Draft' | 'Archived' | ProjectStatus;
 
@@ -100,6 +102,13 @@ export interface ProjectRepoReference {
   label: string;
   url: string;
   description?: string;
+}
+
+export interface ProjectRepository {
+  provider: 'github';
+  url: string;
+  label: string;
+  reachability: 'verified' | 'unknown';
 }
 
 export type ProjectActivityType =
@@ -208,10 +217,11 @@ export interface DailyReport {
 export interface AgentProject {
   id: string;
   name: string;
+  subtitle?: string;
   callsign: string;
   category: string;
   status: ProjectStatus;
-  priority: 'Critical' | 'High' | 'Medium' | 'Low';
+  priority: ProjectPriority;
   objective: string;
   missionBrief: string;
   customerNeed?: string;
@@ -234,6 +244,8 @@ export interface AgentProject {
   localPaths?: ProjectLocalPath[];
   repoReferences?: ProjectRepoReference[];
   safetyNotes?: string[];
+  repository?: ProjectRepository;
+  unknownFields?: string[];
 }
 
 declare global {

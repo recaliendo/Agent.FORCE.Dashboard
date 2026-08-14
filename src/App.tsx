@@ -287,7 +287,7 @@ function projectMatchesFilter(project: AgentProject, filter: ProjectFilter, late
   const hasCouncilFindings = Boolean(latestCouncilRun?.findings.some((finding) => finding.status === 'open' || finding.status === 'in_progress'));
   const hasDailyReport = readSavedReports(project.id).length > 0;
   const hasLocalAgent = project.agents.some((agent) => agent.origin === 'Local' || agent.origin === 'Python' || agent.origin === 'Node' || Boolean(agent.localPath));
-  const hasRepo = Boolean(project.repoUrl || project.repoReferences?.length || project.connectors.some((connector) => connector.type === 'github' && connector.url));
+  const hasRepo = Boolean(project.repository || project.repoUrl || project.repoReferences?.length || project.connectors.some((connector) => connector.type === 'github' && connector.url));
 
   if (filter === 'attention') return project.telemetry.risk >= 50 || project.telemetry.readiness < 60 || connectorIssue || hasCouncilFindings;
   if (filter === 'ready') return project.status === 'Ready';
@@ -732,6 +732,13 @@ function ProjectCockpit({ project, onBack, onSwitchProject, onLaunch, consoleLin
           councilRun={currentCouncilRun}
           nextBestAction={nextBestAction}
           onPrimaryAction={handleNextBestAction}
+          onOpenRepository={project.repository ? () => onLaunch({
+            id: `${project.id}-repository`,
+            label: project.repository?.label ?? 'Open repository',
+            type: 'open_repo',
+            target: project.repository?.url ?? '',
+            description: `Open ${project.repository?.label ?? project.name}.`
+          }) : undefined}
         />
 
         <QwenChatPanel
@@ -994,19 +1001,32 @@ function ProjectCommandHeader({
   project,
   councilRun,
   nextBestAction,
-  onPrimaryAction
+  onPrimaryAction,
+  onOpenRepository
 }: {
   project: AgentProject;
   councilRun: CouncilRun | null;
   nextBestAction: NextBestActionModel;
   onPrimaryAction: () => void;
+  onOpenRepository?: () => void;
 }) {
   return (
     <section className={`project-command-header glass-panel holo-border project-${project.accent}`}>
       <div className="project-context-copy">
         <div className="eyebrow"><Radar size={16} /> {project.category} / {project.priority} Priority</div>
         <h1>{project.name}</h1>
-        <p>{project.missionBrief}</p>
+        <p>{project.subtitle ?? project.missionBrief}</p>
+        {project.repository && (
+          <button
+            className="repository-link"
+            onClick={onOpenRepository}
+            title={project.repository.label}
+            aria-label={project.repository.label}
+            data-tooltip={project.repository.label}
+          >
+            <ExternalLink size={15} /> {project.repository.label}
+          </button>
+        )}
       </div>
       <div className="project-context-metrics">
         <Metric label="Ready" value={project.telemetry.readiness} />
@@ -1303,7 +1323,10 @@ function ActivityTab({
 
 function SettingsTab({ project, onOpenTab, onNotify }: { project: AgentProject; onOpenTab: (tab: CockpitTab) => void; onNotify: (message: string) => void }) {
   async function exportConfig() {
-    const copied = await copyText(JSON.stringify(project, null, 2));
+    const exportable = project.repository
+      ? { ...project, repository: { ...project.repository, url: '[navigation target omitted]' } }
+      : project;
+    const copied = await copyText(JSON.stringify(exportable, null, 2));
     onNotify(copied ? 'Project configuration copied as JSON.' : 'Copy blocked. Select project configuration manually.');
   }
 

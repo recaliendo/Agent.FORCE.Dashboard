@@ -25,12 +25,6 @@ export const seedProjects: AgentProject[] = [
       reachability: 'verified'
     },
     accent: 'cyan',
-    telemetry: {
-      readiness: 0,
-      automation: 0,
-      risk: 0,
-      coverage: 0
-    },
     tags: ['Talent Intelligence', 'People Analytics', 'Explainability', 'Enterprise SaaS'],
     connectors: [],
     agents: [],
@@ -77,20 +71,10 @@ export const seedProjects: AgentProject[] = [
     },
     safetyNotes: ['Public content must stay consistent with verified source material.'],
     accent: 'violet',
-    telemetry: {
-      readiness: 82,
-      automation: 58,
-      risk: 21,
-      coverage: 76
-    },
     tags: ['Portfolio', 'UX', 'Readability', 'SEO'],
     connectors: [],
     launchActions: [],
-    nextActions: [
-      'Add a portfolio QA checklist.',
-      'Add a website readability and negative-space audit panel.',
-      'Track before-and-after UX issues by route.'
-    ],
+    nextActions: [],
     agents: [
       {
         id: 'ux-readability-sentinel',
@@ -141,12 +125,6 @@ export const seedProjects: AgentProject[] = [
     ],
     safetyNotes: ['Never store service-role keys, secret keys, or deploy tokens in connector metadata.'],
     accent: 'amber',
-    telemetry: {
-      readiness: 74,
-      automation: 64,
-      risk: 39,
-      coverage: 71
-    },
     tags: ['StandardCraft', 'NYS Standards', 'Billing', 'Data', 'Deployment'],
     connectors: [],
     launchActions: [
@@ -158,11 +136,7 @@ export const seedProjects: AgentProject[] = [
         description: 'Open the StandardCraft website.'
       }
     ],
-    nextActions: [
-      'Add launch readiness scoring.',
-      'Add credit and download flow regression tests.',
-      'Add billing and data environment checklists.'
-    ],
+    nextActions: [],
     agents: [
       {
         id: 'resource-library-architect',
@@ -210,12 +184,6 @@ export const seedProjects: AgentProject[] = [
       'Do not store confidential documents, credentials, or privileged content in dashboard localStorage.',
       'Use connector references only; keep substantive analysis in approved files.'
     ],
-    telemetry: {
-      readiness: 51,
-      automation: 38,
-      risk: 57,
-      coverage: 44
-    },
     tags: ['Document Ops', 'Timeline', 'Evidence'],
     connectors: [
       {
@@ -228,11 +196,7 @@ export const seedProjects: AgentProject[] = [
       }
     ],
     launchActions: [],
-    nextActions: [
-      'Add document vault path configuration.',
-      'Add timeline and exhibit indexing agent definitions.',
-      'Add privilege and sensitive-data safety reminders.'
-    ],
+    nextActions: [],
     agents: [
       {
         id: 'timeline-builder',

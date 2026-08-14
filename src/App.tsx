@@ -47,6 +47,7 @@ import {
   getReportGuidance
 } from './mentorEngine';
 import { generateDailyReport } from './reportEngine';
+import { evaluateReadiness, type ReadinessSnapshot } from './readinessEngine';
 import {
   getProjectReportStorageKey,
   safeReadActivity,
@@ -288,18 +289,28 @@ function projectMatchesFilter(project: AgentProject, filter: ProjectFilter, late
   const hasDailyReport = readSavedReports(project.id).length > 0;
   const hasLocalAgent = project.agents.some((agent) => agent.origin === 'Local' || agent.origin === 'Python' || agent.origin === 'Node' || Boolean(agent.localPath));
   const hasRepo = Boolean(project.repository || project.repoUrl || project.repoReferences?.length || project.connectors.some((connector) => connector.type === 'github' && connector.url));
+  const readiness = getProjectReadiness(project, latestCouncilRun);
 
-  if (filter === 'attention') return project.telemetry.risk >= 50 || project.telemetry.readiness < 60 || connectorIssue || hasCouncilFindings;
+  if (filter === 'attention') return readiness.risk >= 50 || readiness.score < 60 || connectorIssue || hasCouncilFindings;
   if (filter === 'ready') return project.status === 'Ready';
   if (filter === 'building') return project.status === 'Building';
   if (filter === 'missing_connectors') return connectorIssue;
   if (filter === 'council_findings') return hasCouncilFindings;
   if (filter === 'no_daily_report') return !hasDailyReport;
-  if (filter === 'high_risk') return project.telemetry.risk >= 50;
+  if (filter === 'high_risk') return readiness.risk >= 50;
   if (filter === 'critical_priority') return project.priority === 'Critical';
   if (filter === 'local_agent') return hasLocalAgent;
   if (filter === 'repo_connected') return hasRepo;
   return true;
+}
+
+function getProjectReadiness(
+  project: AgentProject,
+  councilRun?: CouncilRun | null,
+  reports = readSavedReports(project.id),
+  activity = safeReadActivity(project.id)
+) {
+  return evaluateReadiness({ project, councilRun, savedReports: reports, activity, nowMs: Date.now() });
 }
 
 function getLaunchKind(type: LaunchAction['type']): 'url' | 'path' | 'command' {
@@ -461,7 +472,9 @@ function ProjectLaunchBay({
       <FleetSituationWall projects={projects} latestCouncilRuns={latestCouncilRuns} />
 
       <div className="project-grid" aria-label="Agent projects">
-        {projects.length ? projects.map((project) => (
+        {projects.length ? projects.map((project) => {
+          const readiness = getProjectReadiness(project, latestCouncilRuns[project.id]);
+          return (
           <button key={project.id} className={`project-card project-${project.accent}`} onClick={() => onSelect(project.id)}>
             <div className="project-card-inner">
               <div className="project-card-topline">
@@ -472,21 +485,21 @@ function ProjectLaunchBay({
               <p>{project.objective}</p>
               <MiniTrendChart
                 label="Mission signal"
-                values={projectTrend(project)}
+                values={projectTrend(readiness)}
               />
               <div className="telemetry-row">
-                <Metric label="Ready" value={project.telemetry.readiness} />
-                <Metric label="Auto" value={project.telemetry.automation} />
-                <Metric label="Cover" value={project.telemetry.coverage} />
+                <Metric label="Ready" value={readiness.score} />
+                <Metric label="Auto" value={readiness.automation} />
+                <Metric label="Cover" value={readiness.coverage} />
               </div>
               <CouncilSignal run={latestCouncilRuns[project.id]} />
               <div className="project-card-intel">
-                <span><strong>Risk</strong>{project.telemetry.risk}%</span>
+                <span><strong>Risk</strong>{readiness.risk}%</span>
                 <span><strong>Priority</strong>{project.priority}</span>
                 <span><strong>Report</strong>{readSavedReports(project.id).length ? 'Saved' : 'No daily report'}</span>
               </div>
               <div className="next-action-preview">
-                <strong>Next:</strong> {getNextBestAction(project, latestCouncilRuns[project.id], readSavedReports(project.id), null).label}
+                <strong>Next:</strong> {getNextBestAction(readiness).label}
               </div>
               <div className="tag-cloud">
                 {project.tags.slice(0, 5).map((tag) => <span key={tag}>{tag}</span>)}
@@ -497,7 +510,8 @@ function ProjectLaunchBay({
               </div>
             </div>
           </button>
-        )) : (
+          );
+        }) : (
           <div className="no-search-results glass-panel">
             <strong>No matching projects found.</strong>
             <span>Try searching by project name, callsign, connector, status, priority, tag, or agent role.</span>
@@ -602,7 +616,7 @@ function ProjectCockpit({ project, onBack, onSwitchProject, onLaunch, consoleLin
   }
 
   function handleGenerateReport() {
-    const report = generateDailyReport(project, councilRuns[0] ?? latestCouncilRun);
+    const report = generateDailyReport(project, councilRuns[0] ?? latestCouncilRun, getProjectReadiness(project, councilRuns[0] ?? latestCouncilRun, savedReports, activity));
     setCurrentReport(report);
     setCopyStatus('Daily report generated.');
     setActiveTab('daily_report');
@@ -648,7 +662,8 @@ function ProjectCockpit({ project, onBack, onSwitchProject, onLaunch, consoleLin
   }
 
   const currentCouncilRun = councilRuns[0] ?? latestCouncilRun;
-  const nextBestAction = getNextBestAction(project, currentCouncilRun, savedReports, currentReport);
+  const readiness = getProjectReadiness(project, currentCouncilRun, savedReports, activity);
+  const nextBestAction = getNextBestAction(readiness);
   const tabBadges = getCockpitTabBadges(project, currentCouncilRun, savedReports, connectorChecks, activity);
 
   function handleNextBestAction() {
@@ -731,6 +746,7 @@ function ProjectCockpit({ project, onBack, onSwitchProject, onLaunch, consoleLin
           project={project}
           councilRun={currentCouncilRun}
           nextBestAction={nextBestAction}
+          readiness={readiness}
           onPrimaryAction={handleNextBestAction}
           onOpenRepository={project.repository ? () => onLaunch({
             id: `${project.id}-repository`,
@@ -851,7 +867,11 @@ function ProjectCockpit({ project, onBack, onSwitchProject, onLaunch, consoleLin
           {consoleLines.slice(0, 5).map((line, index) => <code key={`${line}-${index}`}>{line}</code>)}
         </div>
         <h3>Project Next Actions</h3>
-        <ol>{project.nextActions.map((action) => <li key={action}>{action}</li>)}</ol>
+        {readiness.actions.length ? (
+          <ol>{readiness.actions.slice(0, 5).map((action) => <li key={action.id}>{action.label}</li>)}</ol>
+        ) : (
+          <p className="empty-state">No readiness actions are open.</p>
+        )}
       </aside>
 
       {drawer && (
@@ -898,67 +918,29 @@ function getConnectorHealth(project: AgentProject) {
   return `${connected}/${project.connectors.length || 0} connected`;
 }
 
-function getTopRisk(project: AgentProject, councilRun?: CouncilRun | null) {
-  const critical = councilRun?.findings.find((finding) => finding.severity === 'Critical' || finding.severity === 'High');
-  if (critical) return critical.title;
-  const connector = project.connectors.find((item) => item.status === 'attention' || item.status === 'needs_setup' || item.status === 'unknown');
-  if (connector) return `${connector.label}: ${connector.url ? 'review connector status' : 'missing URL'}`;
-  if (project.telemetry.risk >= 50) return `Risk telemetry is ${project.telemetry.risk}%`;
-  if (project.telemetry.readiness < 60) return `Readiness is ${project.telemetry.readiness}%`;
-  return 'No major blocker detected';
-}
-
-function getNextBestAction(
-  project: AgentProject,
-  councilRun: CouncilRun | null | undefined,
-  savedReports: DailyReport[],
-  currentReport: DailyReport | null
-): NextBestActionModel {
-  const criticalHigh = councilRun?.findings.filter((finding) =>
-    (finding.severity === 'Critical' || finding.severity === 'High')
-    && (finding.status === 'open' || finding.status === 'in_progress')
-  ).length ?? 0;
-  const connectorIssue = project.connectors.some((connector) => connector.status === 'attention' || connector.status === 'needs_setup' || connector.status === 'unknown');
-  const agentLaunchGap = project.agents.some((agent) => agent.launchActions.length === 0);
-
-  if (criticalHigh > 0) {
+function getNextBestAction(readiness: ReadinessSnapshot): NextBestActionModel {
+  const action = readiness.actions[0];
+  if (!action) {
     return {
-      label: 'Open Council Findings',
-      reason: `${criticalHigh} Critical/High Council finding${criticalHigh === 1 ? '' : 's'} need repair planning before release.`,
-      targetTab: 'council'
+      label: 'Review Council decision',
+      reason: 'All deterministic readiness signals are in a ready state.',
+      targetTab: 'council',
+      effect: 'run_council'
     };
   }
-
-  if (connectorIssue) {
-    return {
-      label: 'Review Connector Hub',
-      reason: 'Connector posture is the clearest operating gap and affects reports, mentor guidance, and release confidence.',
-      targetTab: 'connectors'
-    };
-  }
-
-  if (!currentReport && savedReports.length === 0) {
-    return {
-      label: 'Generate Daily Report',
-      reason: 'This project has no saved operating brief yet.',
-      targetTab: 'daily_report',
-      effect: 'generate_report'
-    };
-  }
-
-  if (agentLaunchGap) {
-    return {
-      label: 'Add or Review Agent Launch Actions',
-      reason: 'At least one agent has no launch path, so execution still requires manual hunting.',
-      targetTab: 'agents'
-    };
-  }
-
+  const targetTab: Record<typeof action.id, CockpitTab> = {
+    connectors: 'connectors',
+    agents: 'agents',
+    council: 'council',
+    deployment: 'settings',
+    reports: 'daily_report',
+    activity: 'activity'
+  };
   return {
-    label: 'Run Final Council Review',
-    reason: 'Core signals are stable enough for a fresh Council release-readiness pass.',
-    targetTab: 'council',
-    effect: 'run_council'
+    label: action.label,
+    reason: action.reason,
+    targetTab: targetTab[action.id],
+    effect: action.id === 'reports' ? 'generate_report' : action.id === 'council' ? 'run_council' : undefined
   };
 }
 
@@ -1001,12 +983,14 @@ function ProjectCommandHeader({
   project,
   councilRun,
   nextBestAction,
+  readiness,
   onPrimaryAction,
   onOpenRepository
 }: {
   project: AgentProject;
   councilRun: CouncilRun | null;
   nextBestAction: NextBestActionModel;
+  readiness: ReadinessSnapshot;
   onPrimaryAction: () => void;
   onOpenRepository?: () => void;
 }) {
@@ -1029,13 +1013,13 @@ function ProjectCommandHeader({
         )}
       </div>
       <div className="project-context-metrics">
-        <Metric label="Ready" value={project.telemetry.readiness} />
+        <Metric label="Ready" value={readiness.score} />
         <span className="context-chip"><strong>{project.status}</strong><small>Status</small></span>
         <span className="context-chip"><strong>{getConnectorHealth(project)}</strong><small>Connectors</small></span>
         <span className="context-chip"><strong>{councilRun?.executiveDecision?.decision ?? 'No Council run'}</strong><small>Council</small></span>
       </div>
       <div className="next-action-strip">
-        <span><strong>Top risk:</strong> {getTopRisk(project, councilRun)}</span>
+        <span><strong>Top risk:</strong> {readiness.topRisk}</span>
         <button className="primary-action" onClick={onPrimaryAction}><Zap size={16} /> {nextBestAction.label}</button>
       </div>
     </section>
@@ -1102,7 +1086,7 @@ function OverviewTab({
     <div className="overview-layout">
       <NextBestActionCard nextBestAction={nextBestAction} onAction={onNextBestAction} />
       <ProductReadinessPanel project={project} />
-      <CockpitHudMatrix project={project} />
+      <CockpitHudMatrix project={project} readiness={getProjectReadiness(project, councilRun, savedReports)} />
       <MentorGuide guidance={`${getProjectGuidance(project)} ${getCouncilGuidance(project, councilRun)}`} onAsk={onAskMentor} />
       <TopAttentionPanel project={project} councilRun={councilRun} onOpenTab={onOpenTab} />
       <section className="glass-panel command-card">
@@ -1124,7 +1108,7 @@ function ProductReadinessPanel({ project }: { project: AgentProject }) {
       <h2><ListChecks size={18} /> Product Clarity</h2>
       <div className="product-clarity-grid">
         <span><strong>Customer need</strong>{project.customerNeed ?? 'Define who this project helps and what decision it improves.'}</span>
-        <span><strong>Current blocker</strong>{project.currentBlockers?.[0] ?? getTopRisk(project)}</span>
+        <span><strong>Current blocker</strong>{project.currentBlockers?.[0] ?? getProjectReadiness(project).topRisk}</span>
       </div>
       <h3>Success Criteria</h3>
       <ul>{(project.successCriteria ?? ['Define measurable success criteria for this project.']).map((item) => <li key={item}>{item}</li>)}</ul>
@@ -1417,7 +1401,7 @@ function ActionDrawer({
           <div className="drawer-body">
             <p>{getProjectGuidance(project)} {getCouncilGuidance(project, councilRun)}</p>
             <NextBestActionCard nextBestAction={nextBestAction} onAction={() => { onOpenTab(nextBestAction.targetTab); onClose(); }} compact />
-            <ReportList title="Current Blockers" items={project.currentBlockers ?? [getTopRisk(project, councilRun)]} />
+            <ReportList title="Current Blockers" items={project.currentBlockers?.length ? project.currentBlockers : [getProjectReadiness(project, councilRun).topRisk]} />
           </div>
         )}
 
@@ -1506,7 +1490,10 @@ function ReportList({ title, items }: { title: string; items: string[] }) {
 function FleetSituationWall({ projects, latestCouncilRuns }: { projects: AgentProject[]; latestCouncilRuns: Record<string, CouncilRun | null> }) {
   const totalAgents = projects.reduce((total, project) => total + project.agents.length, 0);
   const totalConnectors = projects.reduce((total, project) => total + project.connectors.length, 0);
-  const averageReadiness = Math.round(projects.reduce((total, project) => total + project.telemetry.readiness, 0) / Math.max(projects.length, 1));
+  const averageReadiness = Math.round(projects.reduce(
+    (total, project) => total + getProjectReadiness(project, latestCouncilRuns[project.id]).score,
+    0
+  ) / Math.max(projects.length, 1));
   const attentionCount = projects.reduce(
     (total, project) => total + project.connectors.filter((connector) => connector.status === 'attention' || connector.status === 'needs_setup').length,
     0
@@ -1527,7 +1514,10 @@ function FleetSituationWall({ projects, latestCouncilRuns }: { projects: AgentPr
     <section className="fleet-situation-wall" aria-label="Fleet intelligence overview">
       <article className="hud-window hud-wide">
         <div className="hud-title"><Radar size={15} /> Fleet Signal</div>
-        <MiniTrendChart label="Readiness waveform" values={projects.flatMap(projectTrend).slice(0, 18)} />
+        <MiniTrendChart
+          label="Readiness waveform"
+          values={projects.flatMap((project) => projectTrend(getProjectReadiness(project, latestCouncilRuns[project.id]))).slice(0, 18)}
+        />
       </article>
       <article className="hud-window">
         <div className="hud-title"><Gauge size={15} /> Readiness</div>
@@ -1562,7 +1552,7 @@ function FleetSituationWall({ projects, latestCouncilRuns }: { projects: AgentPr
   );
 }
 
-function CockpitHudMatrix({ project }: { project: AgentProject }) {
+function CockpitHudMatrix({ project, readiness }: { project: AgentProject; readiness: ReadinessSnapshot }) {
   const connected = project.connectors.filter((connector) => connector.status === 'connected').length;
   const actionCount = project.launchActions.length + project.agents.reduce((total, agent) => total + agent.launchActions.length, 0);
 
@@ -1578,14 +1568,14 @@ function CockpitHudMatrix({ project }: { project: AgentProject }) {
       </article>
       <article className="hud-window">
         <div className="hud-title"><Activity size={15} /> Telemetry Spectrum</div>
-        <SignalBars values={[project.telemetry.readiness, project.telemetry.automation, 100 - project.telemetry.risk, project.telemetry.coverage, connected * 24, actionCount * 18]} />
+        <SignalBars values={[readiness.score, readiness.automation, 100 - readiness.risk, readiness.coverage, connected * 24, actionCount * 18]} />
       </article>
       <article className="hud-window">
         <div className="hud-title"><Gauge size={15} /> Command Dials</div>
         <div className="dial-row">
-          <Metric label="Ready" value={project.telemetry.readiness} />
-          <Metric label="Auto" value={project.telemetry.automation} />
-          <Metric label="Risk" value={project.telemetry.risk} />
+          <Metric label="Ready" value={readiness.score} />
+          <Metric label="Auto" value={readiness.automation} />
+          <Metric label="Risk" value={readiness.risk} />
         </div>
       </article>
       <article className="hud-window hud-wide">
@@ -1602,15 +1592,15 @@ function CockpitHudMatrix({ project }: { project: AgentProject }) {
   );
 }
 
-function projectTrend(project: AgentProject) {
-  const { readiness, automation, risk, coverage } = project.telemetry;
+function projectTrend(snapshot: ReadinessSnapshot) {
+  const { score: readiness, automation, risk, coverage } = snapshot;
   return [
     Math.max(18, readiness - 18),
     automation,
     Math.max(12, 100 - risk),
     coverage,
-    Math.min(98, readiness + project.agents.length * 3),
-    Math.min(98, coverage + project.connectors.filter((connector) => connector.status === 'connected').length * 6)
+    Math.min(98, readiness + 3),
+    Math.min(98, coverage + 6)
   ];
 }
 

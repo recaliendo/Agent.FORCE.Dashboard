@@ -1,5 +1,6 @@
 import type { AgentProject, DailyReport } from './types';
 import type { CouncilRun } from './council/councilTypes';
+import { evaluateReadiness } from './readinessEngine';
 
 const USER_NICKNAME = 'Ricky';
 
@@ -12,7 +13,8 @@ export function getLaunchBayGuidance(projectCount: number, agentCount: number) {
 }
 
 export function getProjectGuidance(project: AgentProject) {
-  const { readiness, automation, risk, coverage } = project.telemetry;
+  const snapshot = evaluateReadiness({ project, savedReports: [], activity: [], nowMs: Date.now() });
+  const { score: readiness, automation, risk, coverage } = snapshot;
   const missingConnectors = project.connectors.filter((connector) => connector.status === 'needs_setup' || connector.status === 'unknown').length;
   const attentionConnectors = project.connectors.filter((connector) => connector.status === 'attention').length;
 

@@ -1,4 +1,5 @@
 import { getReportGuidance } from './mentorEngine';
+import { evaluateReadiness, type ReadinessSnapshot } from './readinessEngine';
 import type { CouncilRun } from './council/councilTypes';
 import type { AgentProject, DailyReport, DailyReportItem, ProjectConnector } from './types';
 
@@ -15,20 +16,20 @@ function makeItem(signal: DailyReportItem['signal'], title: string, detail: stri
   };
 }
 
-function statusPhrase(project: AgentProject) {
-  if (project.telemetry.risk >= 55) return 'requires stabilization';
-  if (project.telemetry.readiness >= 80 && project.telemetry.coverage >= 70) return 'is in strong launch posture';
+function statusPhrase(project: AgentProject, readiness: ReadinessSnapshot) {
+  if (readiness.risk >= 55) return 'requires stabilization';
+  if (readiness.score >= 80 && readiness.coverage >= 70) return 'is in strong launch posture';
   if (project.status === 'Ready') return 'is ready for focused execution';
   if (project.status === 'Needs QA') return 'needs quality validation before expansion';
   return 'is progressing through build posture';
 }
 
-function weakestSignal(project: AgentProject) {
+function weakestSignal(readiness: ReadinessSnapshot) {
   const signals = [
-    { label: 'readiness', value: project.telemetry.readiness },
-    { label: 'automation', value: project.telemetry.automation },
-    { label: 'coverage', value: project.telemetry.coverage },
-    { label: 'risk control', value: 100 - project.telemetry.risk }
+    { label: 'readiness', value: readiness.score },
+    { label: 'automation', value: readiness.automation },
+    { label: 'coverage', value: readiness.coverage },
+    { label: 'risk control', value: 100 - readiness.risk }
   ];
   return signals.sort((a, b) => a.value - b.value)[0];
 }
@@ -52,20 +53,24 @@ function connectorSummary(connectors: ProjectConnector[]) {
   };
 }
 
-export function generateDailyReport(project: AgentProject, latestCouncilRun?: CouncilRun | null): DailyReport {
+export function generateDailyReport(
+  project: AgentProject,
+  latestCouncilRun?: CouncilRun | null,
+  readiness = evaluateReadiness({ project, councilRun: latestCouncilRun, savedReports: [], activity: [], nowMs: Date.now() })
+): DailyReport {
   const generatedAt = new Date().toISOString();
-  const weakest = weakestSignal(project);
-  const readinessScore = clampScore(project.telemetry.readiness);
-  const automationScore = clampScore(project.telemetry.automation);
-  const riskScore = clampScore(project.telemetry.risk);
-  const coverageScore = clampScore(project.telemetry.coverage);
+  const weakest = weakestSignal(readiness);
+  const readinessScore = clampScore(readiness.score);
+  const automationScore = clampScore(readiness.automation);
+  const riskScore = clampScore(readiness.risk);
+  const coverageScore = clampScore(readiness.coverage);
   const connector = connectorSummary(project.connectors);
 
   const customerNeed = project.customerNeed ?? `The customer need for ${project.callsign} should be clarified in the project registry.`;
-  const executiveSummary = `Today's mission posture for ${project.name} ${statusPhrase(project)}, with readiness at ${readinessScore}% and coverage at ${coverageScore}%. The strongest operating focus is ${project.objective.toLowerCase()}. Customer need: ${customerNeed} Risk is ${riskScore >= 55 ? 'elevated and should be reduced before expanding automation' : 'controlled enough for disciplined execution'}, the weakest telemetry signal is ${weakest.label} at ${weakest.value}%, and connector posture is ${connector.connected}/${project.connectors.length || 0} connected.`;
+  const executiveSummary = `Today's mission posture for ${project.name} ${statusPhrase(project, readiness)}, with readiness at ${readinessScore}% and coverage at ${coverageScore}%. The strongest operating focus is ${project.objective.toLowerCase()}. Customer need: ${customerNeed} Risk is ${riskScore >= 55 ? 'elevated and should be reduced before expanding automation' : 'controlled enough for disciplined execution'}, the weakest signal is ${weakest.label} at ${weakest.value}%, and connector posture is ${connector.connected}/${project.connectors.length || 0} connected.`;
 
   const wins = [
-    makeItem('win', 'Project cockpit is defined', `${project.callsign} has a clear mission brief, objective, priority, telemetry profile, and launch posture.`),
+    makeItem('win', 'Project cockpit is defined', `${project.callsign} has a mission brief, objective, priority, evidence-backed signals, and launch posture.`),
     makeItem('win', 'Agent deck has operating coverage', `${project.agents.length} agent unit${project.agents.length === 1 ? '' : 's'} are mapped to this project with roles and status signals.`),
     makeItem('metric', 'Launch actions are visible', `${project.launchActions.length} launch action${project.launchActions.length === 1 ? '' : 's'} are configured for quick project access.`),
     makeItem('metric', 'Connector posture is tracked', connector.posture)
@@ -88,8 +93,8 @@ export function generateDailyReport(project: AgentProject, latestCouncilRun?: Co
         : makeItem('metric', 'Connector posture is stable', 'No connector attention or setup blockers are currently flagged.')
   ];
 
-  const nextBestActions = project.nextActions.slice(0, 4).map((action, index) =>
-    makeItem('next', `Next action ${index + 1}`, action)
+  const nextBestActions = readiness.actions.slice(0, 4).map((action, index) =>
+    makeItem('next', `Next action ${index + 1}`, `${action.label}: ${action.reason}`)
   );
 
   if (project.currentBlockers?.length) {
@@ -102,7 +107,7 @@ export function generateDailyReport(project: AgentProject, latestCouncilRun?: Co
 
   const commanderNotes = [
     `Priority remains ${project.priority}.`,
-    `Weakest telemetry signal: ${weakest.label}.`,
+    `Weakest readiness signal: ${weakest.label}.`,
     `Command safety remains gated through configured Electron launch controls.`,
     latestCouncilRun
       ? `Latest Council decision: ${latestCouncilRun.executiveDecision?.decision ?? 'Pending'} at ${latestCouncilRun.executiveDecision?.releaseReadinessScore ?? 0}% release readiness.`

@@ -230,12 +230,6 @@ export interface AgentProject {
   repoUrl?: string;
   localPath?: string;
   accent: string;
-  telemetry: {
-    readiness: number;
-    automation: number;
-    risk: number;
-    coverage: number;
-  };
   tags: string[];
   connectors: ProjectConnector[];
   agents: AgentUnit[];

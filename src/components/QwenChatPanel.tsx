@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bot, MessageCircle, RefreshCw, Send, ShieldCheck, Sparkles, Square, Trash2 } from 'lucide-react';
 import type { AgentProject, QwenChatMessage, QwenConfigResult } from '../types';
+import { evaluateReadiness } from '../readinessEngine';
 
 const SYSTEM_PROMPT =
   'You are Agent FORCE Qwen Chat, a local assistant embedded in a multi-project agent dashboard. Be concise, practical, and safety-aware. Do not invent project facts, credentials, secrets, or completion claims.';
@@ -84,6 +85,7 @@ function makeId(prefix: string) {
 }
 
 function buildProjectContext(project: AgentProject) {
+  const readiness = evaluateReadiness({ project, savedReports: [], activity: [], nowMs: 0 });
   return [
     `Project: ${project.name}`,
     `Callsign: ${project.callsign}`,
@@ -91,8 +93,9 @@ function buildProjectContext(project: AgentProject) {
     `Priority: ${project.priority}`,
     `Objective: ${project.objective}`,
     `Mission brief: ${project.missionBrief}`,
-    `Top blockers: ${(project.currentBlockers ?? ['No blockers recorded']).join('; ')}`,
-    `Next actions: ${project.nextActions.join('; ')}`
+    `Top blockers: ${(project.currentBlockers?.length ? project.currentBlockers : [readiness.topRisk]).join('; ')}`,
+    `Next actions: ${readiness.actions.map((action) => action.label).join('; ')}`,
+    `Evidence keys: ${readiness.actions.flatMap((action) => action.evidenceKeys).join('; ')}`
   ].join('\n');
 }
 

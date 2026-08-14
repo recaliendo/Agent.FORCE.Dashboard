@@ -1,4 +1,5 @@
 import type { AgentProject, ProjectConnector } from '../types';
+import { evaluateReadiness } from '../readinessEngine';
 import { buildCodexRepairPrompt } from './codexPromptBuilder';
 import type {
   CouncilFinding,
@@ -63,29 +64,35 @@ function unsafeUrl(connector: ProjectConnector) {
 function buildQaFindings(context: CouncilRunContext) {
   const { project, savedDailyReports } = context;
   const findings: CouncilFinding[] = [];
+  const readiness = evaluateReadiness({
+    project,
+    savedReports: context.latestDailyReport ? [context.latestDailyReport, ...savedDailyReports] : savedDailyReports,
+    activity: [],
+    nowMs: Date.now()
+  });
 
-  if (project.telemetry.risk >= 55) {
+  if (readiness.risk >= 55) {
     findings.push(finding(
       project,
       'qa-optimizer',
       'High',
       'Risk telemetry is above launch threshold',
       'Project Telemetry',
-      `Risk is ${project.telemetry.risk}%, which can hide blockers before release.`,
+      `Risk is ${readiness.risk}%, which can hide blockers before release.`,
       'Add explicit risk reason, owner, mitigation action, and retest checkpoint for this project.',
       'Project cockpit shows the top risk reason, owner, next mitigation step, and status.',
       'software_engineer'
     ));
   }
 
-  if (project.telemetry.readiness < 60) {
+  if (readiness.score < 60) {
     findings.push(finding(
       project,
       'qa-optimizer',
       'High',
       'Readiness is below reliable operating posture',
       'Project Telemetry',
-      `Readiness is ${project.telemetry.readiness}%, so the cockpit may not be ready for repeat use.`,
+      `Readiness is ${readiness.score}%, so the cockpit may not be ready for repeat use.`,
       'Add setup checklist, QA gate, and launch criteria to raise readiness.',
       'Readiness panel includes setup gaps and next QA gate.',
       'software_engineer'
@@ -291,20 +298,6 @@ function buildMarketingFindings(project: AgentProject) {
 function buildProductFindings(project: AgentProject) {
   const findings: CouncilFinding[] = [];
 
-  if (project.nextActions.length === 0) {
-    findings.push(finding(
-      project,
-      'product-lead',
-      'High',
-      'Project has no prioritized next actions',
-      'Product Direction',
-      'The cockpit does not tell Ricky what to do next.',
-      'Add 3-5 ranked next actions tied to customer outcome and mission speed.',
-      'Next Actions contains prioritized steps that help Ricky complete the mission faster.',
-      'chief_product_officer'
-    ));
-  }
-
   if (!/customer|user|ricky|client|visitor|student|buyer|case|mission/i.test(`${project.objective} ${project.missionBrief}`)) {
     findings.push(finding(
       project,
@@ -339,6 +332,7 @@ function buildProductFindings(project: AgentProject) {
 function buildDirections(project: AgentProject, findings: CouncilFinding[]) {
   const highCount = findings.filter((findingItem) => findingItem.severity === 'High' || findingItem.severity === 'Critical').length;
   const connectorIssues = findings.filter((findingItem) => findingItem.impactedArea === 'Connector Hub').length;
+  const nextAction = evaluateReadiness({ project, savedReports: [], activity: [], nowMs: 0 }).actions[0];
 
   return {
     marketingDirection: [
@@ -350,7 +344,7 @@ function buildDirections(project: AgentProject, findings: CouncilFinding[]) {
     productDirection: [
       'Does this help the customer make a better decision or complete the mission faster?',
       highCount ? 'Prioritize risk and readiness before expanding new features.' : 'Continue improving speed-to-value and repeatable operating flow.',
-      `Next product focus: ${project.nextActions[0] ?? 'define a prioritized next action.'}`,
+      `Next product focus: ${nextAction?.label ?? 'review the current readiness evidence.'}`,
       categoryDirection(project, 'product')
     ],
     engineeringRepairs: [
@@ -437,10 +431,17 @@ function severityWeight(severity: CouncilFindingSeverity) {
   return { Critical: 28, High: 16, Medium: 7, Low: 3 }[severity];
 }
 
-function buildExecutiveDecision(project: AgentProject, findings: CouncilFinding[]): NonNullable<CouncilRun['executiveDecision']> {
+function buildExecutiveDecision(context: CouncilRunContext, findings: CouncilFinding[]): NonNullable<CouncilRun['executiveDecision']> {
+  const { project } = context;
   const blockers = findings.filter((findingItem) => findingItem.severity === 'Critical' || findingItem.severity === 'High');
   const readinessPenalty = findings.reduce((total, findingItem) => total + severityWeight(findingItem.severity), 0);
-  const releaseReadinessScore = Math.max(0, Math.min(100, project.telemetry.readiness - readinessPenalty + Math.round(project.telemetry.coverage / 8)));
+  const readiness = evaluateReadiness({
+    project,
+    savedReports: context.latestDailyReport ? [context.latestDailyReport, ...context.savedDailyReports] : context.savedDailyReports,
+    activity: [],
+    nowMs: Date.now()
+  });
+  const releaseReadinessScore = Math.max(0, Math.min(100, readiness.score - readinessPenalty + Math.round(readiness.coverage / 8)));
   const decision: NonNullable<CouncilRun['executiveDecision']>['decision'] = findings.some((item) => item.severity === 'Critical')
     ? 'Blocked'
     : blockers.length > 0
@@ -519,7 +520,7 @@ export function generateCouncilRun(context: CouncilRunContext): CouncilRun {
   const product = buildProductFindings(context.project);
   const findings = [...qa, ...marketing, ...product];
   const directions = buildDirections(context.project, findings);
-  const executiveDecision = buildExecutiveDecision(context.project, findings);
+  const executiveDecision = buildExecutiveDecision(context, findings);
   const status = executiveDecision.decision === 'Blocked'
     ? 'blocked'
     : executiveDecision.decision === 'Needs Repair'

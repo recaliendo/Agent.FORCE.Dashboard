@@ -933,6 +933,7 @@ pre {
 .qwen-chat-shell,
 .qwen-transcript {
   display: grid;
+  min-width: 0;
   gap: var(--space-3);
 }
 
@@ -946,11 +947,25 @@ pre {
 
 .qwen-message {
   display: grid;
-  max-width: min(78%, 72ch);
+  width: fit-content;
+  max-width: min(86%, 84ch);
   gap: var(--space-2);
   border-left: var(--space-1) solid var(--info);
   padding: var(--space-3);
   background: var(--surface-2);
+}
+
+.qwen-assistant {
+  width: 100%;
+  max-width: 100%;
+  justify-self: stretch;
+  padding: var(--space-4);
+}
+
+.qwen-assistant .streaming-markdown,
+.qwen-assistant .qwen-state-copy {
+  width: 100%;
+  max-width: none;
 }
 
 .qwen-message > span:first-child {
@@ -981,6 +996,8 @@ pre {
 }
 
 .qwen-user {
+  width: min(76%, 72ch);
+  max-width: min(76%, 72ch);
   justify-self: end;
   border-left-color: var(--accent);
 }

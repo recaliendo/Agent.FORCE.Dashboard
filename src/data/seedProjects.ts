@@ -17,7 +17,9 @@ export const seedProjects: AgentProject[] = [
       'Role-based experiences protect sensitive data.',
       'Recommendations remain supportive decision support rather than automated judgment.'
     ],
-    currentBlockers: [],
+    currentBlockers: [
+      'Supabase and Lovable Cloud runtime credentials and deployment health are not verified.'
+    ],
     repository: {
       provider: 'github',
       url: 'https://github.com/caliendohomes-rgb/essence-map-desk',
@@ -26,7 +28,43 @@ export const seedProjects: AgentProject[] = [
     },
     accent: 'cyan',
     tags: ['Talent Intelligence', 'People Analytics', 'Explainability', 'Enterprise SaaS'],
-    connectors: [],
+    connectors: [
+      {
+        id: 'talentquest-github',
+        type: 'github',
+        label: 'GitHub Source',
+        url: 'https://github.com/caliendohomes-rgb/essence-map-desk',
+        status: 'connected',
+        environment: 'production',
+        lastChecked: '2026-08-13',
+        dataSource: 'GitHub default branch at 55e753ead434fee03feedb1b6b55a1ff230be7fa',
+        description: 'Source repository is reachable and contains the documented application.'
+      },
+      {
+        id: 'talentquest-supabase',
+        type: 'supabase',
+        label: 'Supabase Data and Auth',
+        url: 'https://github.com/caliendohomes-rgb/essence-map-desk/tree/main/supabase',
+        status: 'needs_setup',
+        environment: 'production',
+        dataSource: 'Supabase client integration, config, and migrations in source',
+        description: 'Application data, authentication, and schema migrations represented in the source tree.',
+        reason: 'Source integration is present; live credentials and endpoint health were not inspected.',
+        nextStep: 'Verify the approved Supabase project and role-scoped runtime health without exposing credentials.'
+      },
+      {
+        id: 'talentquest-lovable',
+        type: 'custom',
+        label: 'Lovable Cloud Auth',
+        url: 'https://github.com/caliendohomes-rgb/essence-map-desk/tree/main/src/integrations/lovable',
+        status: 'unknown',
+        environment: 'production',
+        dataSource: 'Lovable Cloud auth dependency and source integration',
+        description: 'Lovable Cloud authentication adapter included by the application source.',
+        reason: 'The source integration is present; active tenant and deployment linkage are unknown.',
+        nextStep: 'Confirm the production tenant and authentication callback configuration.'
+      }
+    ],
     agents: [],
     launchActions: [],
     nextActions: [],
@@ -37,10 +75,9 @@ export const seedProjects: AgentProject[] = [
     unknownFields: [
       'status',
       'priority',
-      'connectors',
       'agents',
       'launchActions',
-      'currentBlockers'
+      'deployment'
     ]
   },
   {
@@ -60,7 +97,7 @@ export const seedProjects: AgentProject[] = [
       'SEO and readability issues are tracked before high-visibility publishing.'
     ],
     currentBlockers: [
-      'Repository connector is not configured.',
+      'Repository content ingestion is intentionally disabled; navigation remains isolated.',
       'Portfolio QA checklist has not been added.'
     ],
     repository: {
@@ -69,7 +106,10 @@ export const seedProjects: AgentProject[] = [
       label: 'Halo Portfolio Agent',
       reachability: 'verified'
     },
-    safetyNotes: ['Public content must stay consistent with verified source material.'],
+    safetyNotes: [
+      'Public content must stay consistent with verified source material.',
+      'Do not ingest tracked data, logs, databases, or generated output from the repository into model context.'
+    ],
     accent: 'violet',
     tags: ['Portfolio', 'UX', 'Readability', 'SEO'],
     connectors: [],
@@ -106,8 +146,8 @@ export const seedProjects: AgentProject[] = [
       'Launch readiness exposes the top release blocker.'
     ],
     currentBlockers: [
-      'Data and billing connector setup needs review.',
-      'Regression tests for credit and download flows are not represented in the cockpit.'
+      'Supabase, Stripe, and SMTP credentials and live API health are not verified.',
+      'The StandardCraft ops MCP exists in source but is not mounted in Agent FORCE.'
     ],
     repository: {
       provider: 'github',
@@ -126,7 +166,101 @@ export const seedProjects: AgentProject[] = [
     safetyNotes: ['Never store service-role keys, secret keys, or deploy tokens in connector metadata.'],
     accent: 'amber',
     tags: ['StandardCraft', 'NYS Standards', 'Billing', 'Data', 'Deployment'],
-    connectors: [],
+    connectors: [
+      {
+        id: 'standardcraft-github',
+        type: 'github',
+        label: 'GitHub Source',
+        url: 'https://github.com/caliendohomes-rgb/standardcraft',
+        status: 'connected',
+        environment: 'production',
+        lastChecked: '2026-08-13',
+        dataSource: 'GitHub default branch at 509f4a61c59151181269402fa2a02fbe2ffda817',
+        description: 'Source repository and infrastructure configuration are reachable.'
+      },
+      {
+        id: 'standardcraft-netlify',
+        type: 'netlify',
+        label: 'Netlify Production',
+        url: 'https://standardcraftny.com',
+        status: 'connected',
+        environment: 'production',
+        lastChecked: '2026-08-13',
+        dataSource: 'HTTP 200 with Netlify response headers plus netlify.toml and Astro adapter',
+        description: 'Production site is served through Netlify with repository-defined headers and functions.'
+      },
+      {
+        id: 'standardcraft-supabase',
+        type: 'supabase',
+        label: 'Supabase Data, Auth, and Storage',
+        url: 'https://github.com/caliendohomes-rgb/standardcraft/tree/main/supabase',
+        status: 'needs_setup',
+        environment: 'production',
+        dataSource: 'Supabase SSR/client modules, migrations, RLS, and storage workflows in source',
+        description: 'Application data, authentication, row-level security, and protected file storage.',
+        reason: 'Implementation is present; live project credentials and service health were not inspected.',
+        nextStep: 'Run a scoped auth, RLS, storage, and migration health check.'
+      },
+      {
+        id: 'standardcraft-stripe',
+        type: 'stripe',
+        label: 'Stripe Billing',
+        url: 'https://standardcraftny.com/pricing',
+        status: 'needs_setup',
+        environment: 'production',
+        dataSource: 'Stripe SDK, checkout, billing portal, webhook, and price configuration in source',
+        description: 'Subscription checkout, billing portal access, signed webhooks, and credit synchronization.',
+        reason: 'Billing paths exist; live keys, webhook delivery, and price IDs were not inspected.',
+        nextStep: 'Verify webhook signatures, product-price mappings, and one sandbox checkout.'
+      },
+      {
+        id: 'standardcraft-smtp',
+        type: 'custom',
+        label: 'SMTP Transactional Email',
+        url: 'https://standardcraftny.com/contact',
+        status: 'needs_setup',
+        environment: 'production',
+        dataSource: 'Nodemailer implementation, SMTP self-test, and ops MCP environment contract',
+        description: 'Transactional delivery for contact and operational email workflows.',
+        reason: 'Email integration exists; mailbox authentication and delivery health were not tested.',
+        nextStep: 'Run the repository SMTP verification with approved secrets outside the renderer.'
+      },
+      {
+        id: 'standardcraft-ci',
+        type: 'github',
+        label: 'GitHub Actions CI',
+        url: 'https://github.com/caliendohomes-rgb/standardcraft/actions',
+        status: 'unknown',
+        environment: 'production',
+        dataSource: 'CI workflow for typecheck, build, secret scan, and dependency audit',
+        description: 'Main-branch quality gates for type safety, production build, secret scanning, and dependency audit.',
+        reason: 'Workflow configuration is present; the latest run status was not asserted by this registry scan.',
+        nextStep: 'Confirm the main-branch workflow is green before release.'
+      },
+      {
+        id: 'standardcraft-ops-mcp',
+        type: 'custom',
+        label: 'StandardCraft Ops MCP',
+        url: 'https://github.com/caliendohomes-rgb/standardcraft/tree/main/mcp/standardcraft-ops',
+        status: 'needs_setup',
+        environment: 'production',
+        dataSource: 'Repository MCP server for GitHub, Netlify, Supabase, and SMTP operations',
+        description: 'Scoped operational tools for branch protection, deployment, form inbox, and email verification.',
+        reason: 'The MCP server exists in source but Agent FORCE has no mounted MCP transport.',
+        nextStep: 'Approve and implement a scoped MCP bridge with confirmation and credential boundaries.'
+      },
+      {
+        id: 'standardcraft-analytics',
+        type: 'custom',
+        label: 'Product Analytics',
+        status: 'unknown',
+        environment: 'production',
+        dataSource: 'Provider-neutral analytics plan and CSP allowance in source',
+        description: 'Planned product-event contract for privacy-aware usage and funnel measurement.',
+        reason: 'The repository explicitly states that no analytics provider is wired.',
+        nextStep: 'Select a privacy-appropriate provider and implement the documented event contract.'
+      }
+    ],
     launchActions: [
       {
         id: 'standardcraft-site',
@@ -169,7 +303,8 @@ export const seedProjects: AgentProject[] = [
     ],
     currentBlockers: [
       'Document vault connector is missing a safe reference.',
-      'Timeline and exhibit indexing workflows are still in planning.'
+      'Timeline and exhibit indexing workflows are still in planning.',
+      'A GitHub repository association has not been established.'
     ],
     accent: 'emerald',
     localPaths: [
@@ -209,6 +344,7 @@ export const seedProjects: AgentProject[] = [
         tags: ['Timeline', 'Evidence', 'Review'],
         launchActions: []
       }
-    ]
+    ],
+    unknownFields: ['repository']
   }
 ];

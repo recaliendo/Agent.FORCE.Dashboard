@@ -935,10 +935,11 @@ function tabLabel(tab: CockpitTab) {
 function getConnectorHealth(project: AgentProject) {
   if (project.connectors.length === 0) return 'None';
   const attention = project.connectors.filter((connector) => connector.status === 'attention').length;
-  const setup = project.connectors.filter((connector) => connector.status === 'needs_setup' || connector.status === 'unknown').length;
+  const setup = project.connectors.filter((connector) => connector.status === 'needs_setup').length;
+  const unknown = project.connectors.filter((connector) => connector.status === 'unknown').length;
   const connected = project.connectors.filter((connector) => connector.status === 'connected').length;
-  if (attention > 0) return `${attention} attention`;
-  if (setup > 0) return `${setup} setup needed`;
+  const unresolved = attention + setup + unknown;
+  if (unresolved > 0) return `${unresolved} unresolved`;
   return `${connected}/${project.connectors.length || 0} connected`;
 }
 
@@ -1341,6 +1342,9 @@ function SettingsTab({ project, onOpenTab, onNotify }: { project: AgentProject; 
         <ReportList title="Safety Notes" items={project.safetyNotes ?? ['No project-level safety notes configured yet.']} />
         <ReportList title="Local Paths" items={(project.localPaths ?? []).map((path) => `${path.label}: ${path.path}`)} />
         <ReportList title="Repo References" items={(project.repoReferences ?? []).map((repo) => `${repo.label}: ${repo.url}`)} />
+        {project.unknownFields?.length ? (
+          <ReportList title="Unknown Fields" items={project.unknownFields.map((field) => `${field}: UNKNOWN`)} />
+        ) : null}
         <article className="report-section-card">
           <h3>Staged Editing</h3>
           <p className="empty-state">This version validates and exports project configuration. Durable editing is staged for the next registry editor pass; current source-backed changes live in `src/data/seedProjects.ts`.</p>
@@ -1668,8 +1672,15 @@ function ConnectorHub({
   onCopyReference?: (connector: ProjectConnector) => void;
 }) {
   const connected = project.connectors.filter((connector) => connector.status === 'connected').length;
-  const needsSetup = project.connectors.filter((connector) => connector.status === 'needs_setup' || connector.status === 'unknown').length;
+  const needsSetup = project.connectors.filter((connector) => connector.status === 'needs_setup').length;
+  const unknown = project.connectors.filter((connector) => connector.status === 'unknown').length;
   const attention = project.connectors.filter((connector) => connector.status === 'attention').length;
+  const statusSummary = [
+    `${connected} connected`,
+    needsSetup > 0 ? `${needsSetup} setup` : '',
+    unknown > 0 ? `${unknown} unknown` : '',
+    attention > 0 ? `${attention} attention` : ''
+  ].filter(Boolean).join(' / ');
 
   function openConnector(connector: ProjectConnector) {
     const target = connector.url ?? connector.path ?? connector.command;
@@ -1693,7 +1704,7 @@ function ConnectorHub({
           <div className="eyebrow"><ShieldCheck size={15} /> Connector Hub</div>
           <h2>Project infrastructure</h2>
         </div>
-        <span>{connected} connected / {needsSetup} setup / {attention} attention</span>
+        <span>{statusSummary}</span>
       </div>
       <MentorGuide guidance={getConnectorGuidance(project)} compact />
       {project.connectors.length ? (
@@ -1709,8 +1720,8 @@ function ConnectorHub({
               <div className="connector-meta">
                 <span>Environment: {connector.environment ?? 'not set'}</span>
                 <span>{connectorChecks[connector.id]?.checkedAt ? `Checked: ${connectorChecks[connector.id].checkedAt}` : connector.lastChecked ? `Checked: ${connector.lastChecked}` : 'Reference only - no live check yet'}</span>
-                <span>{connectorChecks[connector.id]?.reason ?? (connector.status === 'connected' ? 'Reference is mapped.' : connector.url || connector.path || connector.command ? 'Review setup and status.' : 'Missing reference - configure connector.')}</span>
-                <span>{connectorChecks[connector.id]?.nextStep ?? (connector.url || connector.path || connector.command ? 'Open or check this connector.' : 'Add a non-secret URL, path, or staged command reference.')}</span>
+                <span>{connectorChecks[connector.id]?.reason ?? connector.reason ?? (connector.status === 'connected' ? 'Reference is mapped.' : connector.url || connector.path || connector.command ? 'Review setup and status.' : 'Missing reference - configure connector.')}</span>
+                <span>{connectorChecks[connector.id]?.nextStep ?? connector.nextStep ?? (connector.url || connector.path || connector.command ? 'Open or check this connector.' : 'Add a non-secret URL, path, or staged command reference.')}</span>
               </div>
               <div className="connector-actions">
                 <button onClick={() => openConnector(connector)} aria-label={`Open ${connector.label}`}>

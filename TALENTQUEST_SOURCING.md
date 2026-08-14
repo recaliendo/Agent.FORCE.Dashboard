@@ -17,9 +17,12 @@ The repository documents one whole product named **Talent Compass**, not a modul
 | Stack | Vite, React, TypeScript, Supabase client, Vitest | `package.json:5-13`, `package.json:45-67`, `package.json:69-90` | High |
 | Status | UNKNOWN | No documented operational status | High |
 | Priority | UNKNOWN | No documented dashboard priority | High |
-| Configured connectors | UNKNOWN | README proposes integrations but does not prove dashboard connector configuration (`README.md:21-87`) | High |
+| Source-backed connectors | GitHub, Supabase, Lovable Cloud auth | Repository metadata, Supabase config/migrations, package dependencies, and integration modules | High |
+| Live connector health | UNKNOWN except reachable GitHub source | Credentials, tenant identity, deployment target, and service health were not inspected | High |
 | Dashboard agents | UNKNOWN | No agents are documented | High |
 | Launch actions | UNKNOWN | No Agent FORCE launch actions are documented | High |
 | Current blockers | UNKNOWN | No blockers, issues, ADRs, or TODO documents are present | High |
 
-Unknown values render as specific empty states such as "No connectors configured" and "No agents configured." Proposed integrations from the README are not registered as live connectors.
+Unknown values render as specific evidence states. Source-backed integrations are represented as
+`needs_setup` or `unknown`; they are not presented as live services until a scoped health check
+provides non-secret evidence.

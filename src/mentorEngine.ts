@@ -1,7 +1,7 @@
 import type { AgentProject, DailyReport } from './types';
 import type { CouncilRun } from './council/councilTypes';
 
-const USER_NICKNAME = 'Ricky Skywalker';
+const USER_NICKNAME = 'Ricky';
 
 export function getMentorGreeting() {
   return `Welcome back, ${USER_NICKNAME}. Choose your mission, and the Agent FORCE will align around it.`;
@@ -57,10 +57,10 @@ export function getCouncilGuidance(project: AgentProject, councilRun?: CouncilRu
   const decision = councilRun.executiveDecision?.decision ?? 'Pending';
 
   if (critical > 0 || high > 0) {
-    return `${USER_NICKNAME}, Princess Leia has flagged ${critical + high} high-priority Council finding${critical + high === 1 ? '' : 's'}. Send them to Luke Skywalker before calling ${project.callsign} launch-ready.`;
+    return `${USER_NICKNAME}, the QA review has flagged ${critical + high} high-priority Council finding${critical + high === 1 ? '' : 's'}. Send them to engineering before calling ${project.callsign} launch-ready.`;
   }
 
-  return `${USER_NICKNAME}, the latest Council decision is ${decision}. Use the CEO directives and Han Solo product guidance to choose the next mission move.`;
+  return `${USER_NICKNAME}, the latest Council decision is ${decision}. Use the executive directives and product guidance to choose the next action.`;
 }
 
 export function getAgentDeckGuidance(project: AgentProject) {

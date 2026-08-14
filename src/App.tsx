@@ -34,13 +34,9 @@ import {
 } from 'lucide-react';
 import { seedProjects } from './data/seedProjects';
 import { CouncilCenter, type CouncilCenterView } from './components/CouncilCenter';
-import { CharacterAvatar } from './components/CharacterAvatar';
-import { CharacterStage } from './components/CharacterStage';
 import { QwenChatPanel } from './components/QwenChatPanel';
 import { generateCouncilRun, summarizeCouncilRun } from './council/councilEngine';
 import { safeReadCouncilRuns, safeWriteCouncilRuns } from './council/councilStorage';
-import { getProjectAdvisorSignal } from './characters/characterEngine';
-import { getCharacterById } from './characters/characterRegistry';
 import {
   getAgentDeckGuidance,
   getCouncilGuidance,
@@ -353,24 +349,11 @@ interface MentorGuideProps {
   onAsk?: () => void;
 }
 
-function MentorGuide({ eyebrow = 'Mentor Guidance', title = 'Master Verdant', guidance, compact = false, onAsk }: MentorGuideProps) {
+function MentorGuide({ eyebrow = 'Mentor Guidance', title = 'Agent FORCE', guidance, compact = false, onAsk }: MentorGuideProps) {
   const [expanded, setExpanded] = useState(false);
-  const mentorCharacter = getCharacterById('master-verdant');
 
   return (
     <aside className={`mentor-guide glass-panel ${compact ? 'mentor-compact' : ''} ${expanded ? 'mentor-expanded' : ''}`}>
-      {mentorCharacter ? (
-        <CharacterAvatar
-          character={mentorCharacter}
-          state={expanded ? 'reviewing' : 'idle'}
-          compact
-          className="mentor-character-avatar"
-        />
-      ) : (
-        <div className="mentor-avatar" aria-hidden="true">
-          <span />
-        </div>
-      )}
       <div className="mentor-copy">
         <div className="eyebrow"><Brain size={15} /> {eyebrow}</div>
         <h3>{title}</h3>
@@ -1095,29 +1078,9 @@ function OverviewTab({
   onOpenCouncilView: (view: CouncilCenterView) => void;
   onAskMentor: () => void;
 }) {
-  const advisorSignal = getProjectAdvisorSignal(project, councilRun, currentReport);
-
-  function handleAdvisorAction() {
-    if (/mentor/i.test(advisorSignal.nextAction)) {
-      onAskMentor();
-      return;
-    }
-    const tab = tabForCharacterAction(advisorSignal.nextAction);
-    if (tab === 'council') {
-      onOpenCouncilView(councilViewForCharacterAction(advisorSignal.nextAction));
-      return;
-    }
-    onOpenTab(tab);
-  }
-
   return (
     <div className="overview-layout">
       <NextBestActionCard nextBestAction={nextBestAction} onAction={onNextBestAction} />
-      <CharacterStage
-        signal={advisorSignal}
-        onAction={handleAdvisorAction}
-        className="overview-character-stage"
-      />
       <ProductReadinessPanel project={project} />
       <CockpitHudMatrix project={project} />
       <MentorGuide guidance={`${getProjectGuidance(project)} ${getCouncilGuidance(project, councilRun)}`} onAsk={onAskMentor} />
@@ -1783,8 +1746,6 @@ function DailyReportCenter({
 }: DailyReportCenterProps) {
   const generatedDate = report ? new Date(report.generatedAt).toLocaleString() : 'Awaiting generation';
   const [reportUiStatus, setReportUiStatus] = useState('');
-  const advisorSignal = getProjectAdvisorSignal(project, latestCouncilRun, report);
-
   return (
     <section className="daily-report-center glass-panel holo-border">
       <div className="report-header">
@@ -1809,23 +1770,6 @@ function DailyReportCenter({
       </div>
 
       <MentorGuide eyebrow="Mentor Tip" guidance={getReportGuidance(project, report)} compact />
-
-      <CharacterStage
-        signal={advisorSignal}
-        compact
-        className="daily-character-signal"
-        onAction={() => {
-          const tab = tabForCharacterAction(advisorSignal.nextAction);
-          if (tab === 'council') {
-            const view = councilViewForCharacterAction(advisorSignal.nextAction);
-            onOpenCouncilView(view);
-            setReportUiStatus(`${advisorSignal.character.displayName} opened Council ${view}.`);
-            return;
-          }
-          onOpenTab(tab);
-          setReportUiStatus(`${advisorSignal.character.displayName} opened ${tabLabel(tab)}.`);
-        }}
-      />
 
       {latestCouncilRun && (
         <div className="daily-council-brief">

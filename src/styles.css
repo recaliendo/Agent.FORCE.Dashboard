@@ -2269,52 +2269,6 @@ p {
   right: 8px;
 }
 
-.character-princess-leia .character-scan {
-  border-style: dashed;
-}
-
-.character-princess-leia .character-motif-a {
-  width: 28px;
-  height: 38px;
-  border-radius: 7px;
-}
-
-.character-luke-skywalker .character-tool {
-  width: 32px;
-  height: 20px;
-  right: -4px;
-  border-radius: 10px;
-}
-
-.character-luke-skywalker .character-torso {
-  clip-path: polygon(8% 0, 92% 0, 86% 100%, 14% 100%);
-}
-
-.character-chewmacka .character-shoulders {
-  width: 76px;
-}
-
-.character-chewmacka .character-tool {
-  top: 90px;
-  right: -12px;
-  height: 52px;
-  width: 12px;
-  border-radius: 999px;
-  transform: rotate(-5deg);
-}
-
-.character-han-solo .character-orbit-one {
-  width: 68px;
-  height: 68px;
-  right: -14px;
-  border-style: dashed;
-}
-
-.character-han-solo .character-motif-c {
-  border-radius: 5px 50% 50% 50%;
-  transform: rotate(45deg);
-}
-
 .character-ceo .character-shoulders {
   width: 78px;
   height: 26px;
@@ -2333,46 +2287,6 @@ p {
 
 .character-master-verdant .character-figure {
   opacity: 0.84;
-}
-
-.character-princess-leia {
-  --human-skin: #e6bea1;
-  --human-hair: #4c2a22;
-  --human-beard: #4c2a22;
-  --human-suit: #d8e8ee;
-  --human-suit-2: #223848;
-  --human-trim: #49f5a8;
-  --human-shadow: rgba(73, 245, 168, 0.24);
-}
-
-.character-luke-skywalker {
-  --human-skin: #e3b989;
-  --human-hair: #8c613a;
-  --human-beard: #7b5633;
-  --human-suit: #225170;
-  --human-suit-2: #11293c;
-  --human-trim: #66d9ff;
-  --human-shadow: rgba(102, 217, 255, 0.24);
-}
-
-.character-chewmacka {
-  --human-skin: #c99672;
-  --human-hair: #1d1713;
-  --human-beard: #2b2119;
-  --human-suit: #394152;
-  --human-suit-2: #1c2530;
-  --human-trim: #f6c760;
-  --human-shadow: rgba(246, 199, 96, 0.22);
-}
-
-.character-han-solo {
-  --human-skin: #dfad88;
-  --human-hair: #3b2a22;
-  --human-beard: #3b2a22;
-  --human-suit: #1f4b55;
-  --human-suit-2: #17252d;
-  --human-trim: #35d7c6;
-  --human-shadow: rgba(53, 215, 198, 0.23);
 }
 
 .character-ceo {

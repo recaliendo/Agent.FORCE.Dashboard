@@ -2,8 +2,8 @@ import type { CouncilAgent } from './councilTypes';
 
 export const councilAgents: CouncilAgent[] = [
   {
-    id: 'princess-leia',
-    name: 'Princess Leia',
+    id: 'qa-optimizer',
+    name: 'QA Optimizer',
     role: 'qa_optimizer',
     title: 'QA Software Agent Optimizer',
     mission: 'Independently inspect project quality, release risk, broken flows, guardrails, state handling, and user readiness.',
@@ -18,8 +18,8 @@ export const councilAgents: CouncilAgent[] = [
     handoffTo: ['software_engineer']
   },
   {
-    id: 'luke-skywalker',
-    name: 'Luke Skywalker',
+    id: 'software-engineer',
+    name: 'Software Engineer',
     role: 'software_engineer',
     title: 'Expert Level Software Engineer',
     mission: 'Convert Council findings into a safe engineering repair plan without weakening command execution safety.',
@@ -34,8 +34,8 @@ export const councilAgents: CouncilAgent[] = [
     handoffTo: ['qa_optimizer', 'chief_executive_officer']
   },
   {
-    id: 'chewmacka',
-    name: 'ChewMacka',
+    id: 'marketing-executive',
+    name: 'Marketing Executive',
     role: 'marketing_executive',
     title: 'Marketing Executive Agent',
     mission: 'Review brand clarity, SEO, navigation, readability, conversion copy, and executive trust.',
@@ -50,8 +50,8 @@ export const councilAgents: CouncilAgent[] = [
     handoffTo: ['software_engineer', 'chief_product_officer']
   },
   {
-    id: 'han-solo',
-    name: 'Han Solo',
+    id: 'product-lead',
+    name: 'Product Lead',
     role: 'chief_product_officer',
     title: 'Chief Product Officer',
     mission: 'Keep the Council focused on user value, faster decisions, customer need, and roadmap priority.',

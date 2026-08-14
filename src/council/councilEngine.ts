@@ -67,7 +67,7 @@ function buildQaFindings(context: CouncilRunContext) {
   if (project.telemetry.risk >= 55) {
     findings.push(finding(
       project,
-      'princess-leia',
+      'qa-optimizer',
       'High',
       'Risk telemetry is above launch threshold',
       'Project Telemetry',
@@ -81,7 +81,7 @@ function buildQaFindings(context: CouncilRunContext) {
   if (project.telemetry.readiness < 60) {
     findings.push(finding(
       project,
-      'princess-leia',
+      'qa-optimizer',
       'High',
       'Readiness is below reliable operating posture',
       'Project Telemetry',
@@ -95,7 +95,7 @@ function buildQaFindings(context: CouncilRunContext) {
   if (project.launchActions.length === 0) {
     findings.push(finding(
       project,
-      'princess-leia',
+      'qa-optimizer',
       'Medium',
       'No project launch actions configured',
       'Launch Actions',
@@ -109,7 +109,7 @@ function buildQaFindings(context: CouncilRunContext) {
   if (project.agents.length === 0) {
     findings.push(finding(
       project,
-      'princess-leia',
+      'qa-optimizer',
       'High',
       'Agent deck is empty',
       'Agent Deck',
@@ -124,7 +124,7 @@ function buildQaFindings(context: CouncilRunContext) {
     if (connector.status === 'attention') {
       findings.push(finding(
         project,
-        'princess-leia',
+        'qa-optimizer',
         'High',
         `${connector.label} connector needs attention`,
         'Connector Hub',
@@ -138,7 +138,7 @@ function buildQaFindings(context: CouncilRunContext) {
     if ((connector.status === 'needs_setup' || connector.status === 'unknown') && !connector.url) {
       findings.push(finding(
         project,
-        'princess-leia',
+        'qa-optimizer',
         'Medium',
         `${connector.label} is missing a non-secret URL`,
         'Connector Hub',
@@ -152,7 +152,7 @@ function buildQaFindings(context: CouncilRunContext) {
     if (unsafeUrl(connector)) {
       findings.push(finding(
         project,
-        'princess-leia',
+        'qa-optimizer',
         'Critical',
         `${connector.label} uses an unsafe URL`,
         'Electron Safety',
@@ -167,7 +167,7 @@ function buildQaFindings(context: CouncilRunContext) {
   if (!context.latestDailyReport && savedDailyReports.length === 0) {
     findings.push(finding(
       project,
-      'princess-leia',
+      'qa-optimizer',
       'Low',
       'No saved daily report history',
       'Daily Report Center',
@@ -181,7 +181,7 @@ function buildQaFindings(context: CouncilRunContext) {
   if (/portfolio|brand/i.test(project.category)) {
     findings.push(finding(
       project,
-      'princess-leia',
+      'qa-optimizer',
       'Medium',
       'Portfolio cockpit should track source and website alignment',
       'Portfolio QA',
@@ -197,7 +197,7 @@ function buildQaFindings(context: CouncilRunContext) {
     if (billingDataIssue) {
       findings.push(finding(
         project,
-        'princess-leia',
+        'qa-optimizer',
         'High',
         'SaaS launch connectors need release confidence',
         'SaaS Launch Readiness',
@@ -212,7 +212,7 @@ function buildQaFindings(context: CouncilRunContext) {
   if (/legal|document|case/i.test(project.category)) {
     findings.push(finding(
       project,
-      'princess-leia',
+      'qa-optimizer',
       'High',
       'Legal operations require confidentiality guardrails',
       'Legal Ops Safety',
@@ -232,7 +232,7 @@ function buildMarketingFindings(project: AgentProject) {
   if (project.objective.length > 180) {
     findings.push(finding(
       project,
-      'chewmacka',
+      'marketing-executive',
       'Medium',
       'Project objective is hard to scan',
       'Project Card Copy',
@@ -246,7 +246,7 @@ function buildMarketingFindings(project: AgentProject) {
   if (!project.tags.some((tag) => /qa|seo|brand|launch|customer|portfolio|product/i.test(tag))) {
     findings.push(finding(
       project,
-      'chewmacka',
+      'marketing-executive',
       'Low',
       'Tags do not clarify user value',
       'Brand and Navigation',
@@ -260,7 +260,7 @@ function buildMarketingFindings(project: AgentProject) {
   if (/portfolio|brand/i.test(project.category)) {
     findings.push(finding(
       project,
-      'chewmacka',
+      'marketing-executive',
       'Medium',
       'Portfolio value proposition should be immediately scannable',
       'Brand and Conversion',
@@ -274,7 +274,7 @@ function buildMarketingFindings(project: AgentProject) {
   if (/saas|product|build/i.test(project.category)) {
     findings.push(finding(
       project,
-      'chewmacka',
+      'marketing-executive',
       'Medium',
       'SaaS project needs buyer and conversion clarity',
       'Marketing and CTA Flow',
@@ -294,7 +294,7 @@ function buildProductFindings(project: AgentProject) {
   if (project.nextActions.length === 0) {
     findings.push(finding(
       project,
-      'han-solo',
+      'product-lead',
       'High',
       'Project has no prioritized next actions',
       'Product Direction',
@@ -308,7 +308,7 @@ function buildProductFindings(project: AgentProject) {
   if (!/customer|user|ricky|client|recruiter|student|buyer|case|mission/i.test(`${project.objective} ${project.missionBrief}`)) {
     findings.push(finding(
       project,
-      'han-solo',
+      'product-lead',
       'Medium',
       'Customer outcome is not explicit',
       'Project Mission',
@@ -322,7 +322,7 @@ function buildProductFindings(project: AgentProject) {
   if (!project.customerNeed || !project.successCriteria?.length) {
     findings.push(finding(
       project,
-      'han-solo',
+      'product-lead',
       'Medium',
       'Customer need or success criteria are missing',
       'Product Direction',
@@ -359,7 +359,7 @@ function buildDirections(project: AgentProject, findings: CouncilFinding[]) {
         .slice(0, 5)
         .map((findingItem) => `Repair ${findingItem.impactedArea}: ${findingItem.recommendedRepair}`),
       'Run TypeScript, build, and Electron smoke test after repairs.',
-      'Request Princess Leia retest for all Critical and High findings.'
+      'Request QA retest for all Critical and High findings.'
     ],
     retestNotes: [
       'Retest generated findings after code changes are completed by Codex or manually by the operator.',
@@ -463,10 +463,10 @@ function buildExecutiveDecision(project: AgentProject, findings: CouncilFinding[
       'Attach screenshots and test artifacts to Council runs.'
     ],
     requiredNextActions: [
-      'Princess Leia retests Critical and High findings after repairs.',
-      'Luke Skywalker implements the top repair plan without weakening safety.',
-      'ChewMacka clarifies copy where setup or action language is unclear.',
-      'Han Solo confirms each repair improves customer speed-to-value.',
+      'QA retests Critical and High findings after repairs.',
+      'Engineering implements the top repair plan without weakening safety.',
+      'Marketing clarifies copy where setup or action language is unclear.',
+      'Product confirms each repair improves customer speed-to-value.',
       'CEO reviews the next Council run for release approval.'
     ],
     lenses: buildLenses(project, findings)

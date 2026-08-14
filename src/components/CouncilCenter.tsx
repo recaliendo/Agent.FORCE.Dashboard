@@ -11,10 +11,6 @@ import {
 } from 'lucide-react';
 import { councilAgents } from '../council/councilAgents';
 import { scopeLabel, summarizeCouncilRun } from '../council/councilEngine';
-import { getFindingCharacterId } from '../characters/characterEngine';
-import { getCharacterById } from '../characters/characterRegistry';
-import { CharacterAvatar } from './CharacterAvatar';
-import { CharacterCouncilChamber } from './CharacterCouncilChamber';
 import type {
   CouncilAgent,
   CouncilFinding,
@@ -102,31 +98,6 @@ export function CouncilCenter({ project, runs, onRun, initialView = 'findings' }
     setActiveView('findings');
   }
 
-  function handleCharacterAction(characterId: string) {
-    if (characterId === 'princess-leia') {
-      setActiveView('findings');
-      setCopyStatus(latestRun ? 'QA findings opened for Princess Leia.' : 'Run Council Review before viewing QA findings.');
-      return;
-    }
-    if (characterId === 'luke-skywalker') {
-      setActiveView('prompt');
-      setCopyStatus(latestRun ? 'Codex repair prompt opened for Luke Skywalker.' : 'Run Council Review before generating a repair prompt.');
-      return;
-    }
-    if (characterId === 'chewmacka') {
-      setActiveView('decision');
-      setCopyStatus(latestRun ? 'Brand and SEO recommendations are visible in the executive decision.' : 'Run Council Review before viewing brand recommendations.');
-      return;
-    }
-    if (characterId === 'han-solo') {
-      setActiveView('decision');
-      setCopyStatus(latestRun ? 'Product direction opened for Han Solo.' : 'Run Council Review before viewing product direction.');
-      return;
-    }
-    setActiveView('decision');
-    setCopyStatus(latestRun ? 'CEO decision opened.' : 'Run Council Review before viewing the final decision.');
-  }
-
   async function copyCouncilReport() {
     if (!latestRun) return;
     const copied = await copyText(latestRun.councilReportMarkdown);
@@ -198,8 +169,6 @@ export function CouncilCenter({ project, runs, onRun, initialView = 'findings' }
           <small>Open</small>
         </span>
       </div>
-
-      <CharacterCouncilChamber run={latestRun} onCharacterAction={handleCharacterAction} />
 
       <div className="council-agent-grid">
         {councilAgents.map((agent) => (
@@ -281,14 +250,7 @@ function CouncilFindings({ findings }: { findings: CouncilFinding[] }) {
   return (
     <div className="council-finding-list">
       {findings.map((finding) => {
-        const character = getCharacterById(getFindingCharacterId(finding.agentId));
-        const characterState = finding.status === 'retest_passed'
-          ? 'approved'
-          : finding.status === 'fixed'
-            ? 'completed'
-            : finding.severity === 'Critical' || finding.severity === 'High'
-              ? 'warning'
-              : 'reviewing';
+        const owner = councilAgents.find((agent) => agent.id === finding.agentId);
 
         return (
           <article key={finding.id} className="council-finding-card">
@@ -297,12 +259,18 @@ function CouncilFindings({ findings }: { findings: CouncilFinding[] }) {
               <span>{finding.impactedArea}</span>
               <span>{finding.status.replace('_', ' ')}</span>
             </div>
-            {character && (
+            {owner && (
               <div className="finding-character-owner">
-                <CharacterAvatar character={character} state={characterState} compact />
+                <div className={`council-agent-badge badge-${owner.role}`} aria-hidden="true">
+                  {owner.role === 'qa_optimizer' && <ShieldAlert size={19} />}
+                  {owner.role === 'software_engineer' && <GitBranch size={19} />}
+                  {owner.role === 'marketing_executive' && <Sparkles size={19} />}
+                  {owner.role === 'chief_product_officer' && <UserCheck size={19} />}
+                  {owner.role === 'chief_executive_officer' && <FileText size={19} />}
+                </div>
                 <span>
-                  <strong>{character.displayName}</strong>
-                  {character.archetype}
+                  <strong>{owner.name}</strong>
+                  {owner.title}
                 </span>
               </div>
             )}

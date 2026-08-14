@@ -48,6 +48,7 @@ import {
 } from './mentorEngine';
 import { generateDailyReport } from './reportEngine';
 import { evaluateReadiness, type ReadinessSnapshot } from './readinessEngine';
+import { projectHash, resolveProjectRoute } from './projectRoutes';
 import {
   getProjectReportStorageKey,
   safeReadActivity,
@@ -84,7 +85,11 @@ type DrawerState =
 
 function App() {
   const appShellRef = useRef<HTMLElement | null>(null);
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(seedProjects[0]?.id ?? null);
+  const initialRoute = resolveProjectRoute(window.location.hash, seedProjects.map((project) => project.id));
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
+    initialRoute.kind === 'project' ? initialRoute.projectId : initialRoute.kind === 'launch' ? seedProjects[0]?.id ?? null : null
+  );
+  const [notFoundProjectId, setNotFoundProjectId] = useState(initialRoute.kind === 'not_found' ? initialRoute.requestedId : '');
   const [query, setQuery] = useState('');
   const [quickFilter, setQuickFilter] = useState<ProjectFilter>('all');
   const [launchBayStatus, setLaunchBayStatus] = useState('');
@@ -98,10 +103,30 @@ function App() {
   const selectedProject = seedProjects.find((project) => project.id === selectedProjectId) ?? null;
   const agentCount = seedProjects.reduce((total, project) => total + project.agents.length, 0);
 
+  function navigateProject(projectId: string | null) {
+    setNotFoundProjectId('');
+    setSelectedProjectId(projectId);
+    window.history.replaceState(null, '', projectId ? projectHash(projectId) : '#/');
+  }
+
   useEffect(() => {
     appShellRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
   }, [selectedProjectId]);
+
+  useEffect(() => {
+    document.title = selectedProject ? `${selectedProject.name} - Agent FORCE Dashboard` : 'Agent FORCE Dashboard';
+  }, [selectedProject]);
+
+  useEffect(() => {
+    function syncRoute() {
+      const route = resolveProjectRoute(window.location.hash, seedProjects.map((project) => project.id));
+      setSelectedProjectId(route.kind === 'project' ? route.projectId : null);
+      setNotFoundProjectId(route.kind === 'not_found' ? route.requestedId : '');
+    }
+    window.addEventListener('hashchange', syncRoute);
+    return () => window.removeEventListener('hashchange', syncRoute);
+  }, []);
   const latestCouncilRuns = useMemo<Record<string, CouncilRun | null>>(() => {
     councilRevision;
     return Object.fromEntries(seedProjects.map((project) => [project.id, safeReadCouncilRuns(project.id)[0] ?? null]));
@@ -231,7 +256,7 @@ function App() {
       <div className="grid-horizon" />
 
       <header className="top-command-bar glass-panel">
-        <button className="brand-lockup" onClick={() => setSelectedProjectId(null)} aria-label="Return to Project Launch Bay">
+        <button className="brand-lockup" onClick={() => navigateProject(null)} aria-label="Return to Project Launch Bay">
           <span className="brand-mark"><Orbit size={26} /></span>
           <span>
             <strong>Agent FORCE</strong>
@@ -246,11 +271,13 @@ function App() {
         </div>
       </header>
 
-      {selectedProject ? (
+      {notFoundProjectId ? (
+        <ProjectNotFound onBack={() => navigateProject(null)} />
+      ) : selectedProject ? (
         <ProjectCockpit
           project={selectedProject}
-          onBack={() => setSelectedProjectId(null)}
-          onSwitchProject={setSelectedProjectId}
+          onBack={() => navigateProject(null)}
+          onSwitchProject={navigateProject}
           onLaunch={handleLaunch}
           consoleLines={consoleLines}
           latestCouncilRun={latestCouncilRuns[selectedProject.id] ?? null}
@@ -263,7 +290,7 @@ function App() {
           projects={filteredProjects}
           projectCount={seedProjects.length}
           agentCount={agentCount}
-          onSelect={setSelectedProjectId}
+          onSelect={navigateProject}
           latestCouncilRuns={latestCouncilRuns}
           quickFilter={quickFilter}
           setQuickFilter={setQuickFilter}
@@ -280,6 +307,19 @@ function App() {
         />
       )}
     </main>
+  );
+}
+
+function ProjectNotFound({ onBack }: { onBack: () => void }) {
+  return (
+    <section className="not-found-state glass-panel" role="status">
+      <CircleAlert size={28} />
+      <div>
+        <h1>Project not found</h1>
+        <p>This project is not registered in the current Agent FORCE fleet.</p>
+      </div>
+      <button className="primary-action" onClick={onBack}><Home size={16} /> Open project list</button>
+    </section>
   );
 }
 

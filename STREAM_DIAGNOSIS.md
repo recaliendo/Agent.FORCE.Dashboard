@@ -112,14 +112,14 @@ stream content: 1, 2, 3, 4, 5!
 
 ## Actual Runtime
 
-`llama-server --version`:
+Current `llama-server --version` after the performance pass:
 
 ```text
-version: 10375 (ba360efe1)
+version: 0.1.0-dev (build 10423, commit a94d563ed)
 built with Clang 20.1.8 for Windows x86_64
 ```
 
-This differs from the supplied `b1037` claim. The running command line is:
+The running command line is:
 
 ```text
 llama-server.exe
@@ -128,11 +128,13 @@ llama-server.exe
   --port 8080
   --alias Qwen/Qwen3.6-35B-A3B
   --ctx-size 8192
-  --n-gpu-layers 12
+  --n-gpu-layers all
+  --n-cpu-moe 32
   --parallel 1
   --flash-attn on
   --cache-type-k q8_0
   --cache-type-v q8_0
+  --load-mode none
   --jinja
   --api-key-file <local file path>
 ```
@@ -140,23 +142,24 @@ llama-server.exe
 Startup log:
 
 ```text
-0.00.234 I load_model: loading model ...Qwen3.6-35B-A3B-UD-Q4_K_M.gguf
-0.00.859 W failed to fit params to free device memory: n_gpu_layers already set to 12
-0.10.521 I initializing, n_slots = 1, n_ctx_slot = 8192
-0.10.539 I model loaded
-0.10.539 I listening on http://127.0.0.1:8080
+0.00.237 I load_model: loading model ...Qwen3.6-35B-A3B-UD-Q4_K_M.gguf
+0.20.083 I llama threadpool init, n_threads = 16
+0.20.922 I initializing, n_slots = 1, n_ctx_slot = 8192
+0.20.941 I model loaded
+0.20.941 I listening on http://127.0.0.1:8080
 ```
 
-Observed model-load time varied from 9.99 to 15.33 seconds across restarts. The log
-confirms the configured 12 GPU layers but does not print an exact CPU/GPU layer split.
+Eager model load takes about 21 seconds, then avoids paging CPU expert weights during
+the first request. The first 32 sparse-expert layers remain in system RAM; attention,
+shared tensors, and the final expert layers are eligible for GPU placement.
 
 GPU snapshot:
 
 ```text
 NVIDIA GeForce RTX 4060 Laptop GPU
 VRAM total: 8188 MiB
-VRAM used: 6539 MiB
-VRAM free: 1418 MiB
+VRAM used: 6375 MiB
+VRAM free: 1582 MiB
 ```
 
 ## Layer Diagnosis
@@ -246,7 +249,7 @@ flowchart LR
   PARSER["Buffered SSE parser"]
   HTTP["OpenAI-compatible HTTP /v1/chat/completions"]
   SERVER["llama.cpp server on 127.0.0.1:8080"]
-  HW["RTX 4060: 12 layers; CPU/system RAM: remainder"]
+  HW["RTX 4060: attention/shared plus final experts; CPU RAM: first 32 MoE layers"]
 
   UI -->|"qwenStreamChat(requestId, messages, callback)"| BR
   BR -->|"invoke starts request"| MAIN
@@ -275,7 +278,7 @@ is control-plane initiation only; the stream itself uses subscribe-style IPC eve
 
 ## Verdict
 
-Interactive chat is usable after a warm prefix cache, but uncached mentor guidance is
-not consistently interactive on this hardware: measured first useful output can exceed
-30 seconds. Render deterministic next actions immediately and generate rationale
-asynchronously so the card is useful before the first model token arrives.
+The optimized profile makes short and medium Agent FORCE chat interactive: the retained
+benchmark averages 3.343 seconds and a prefix-reused Electron turn completed in 0.64
+seconds. Deterministic next actions should still render immediately for long prompts,
+with Qwen adding rationale asynchronously.

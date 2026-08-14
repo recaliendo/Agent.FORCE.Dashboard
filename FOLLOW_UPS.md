@@ -6,16 +6,16 @@ These items were observed but deliberately left outside this repair.
    installed binary is `10375 (ba360efe1)`. Record and enforce a tested version in setup.
 2. Pin JavaScript dependencies. `package.json` uses `latest` for production and build
    packages, which makes clean installs non-reproducible despite the current lockfile.
-3. Decide a context-retention budget before reducing `--ctx-size` below 8,192. Current
-   chat history can grow, so a smaller limit needs an explicit truncation/summarization
-   policy.
-4. Consider speculative decoding only after selecting and validating a compatible draft
-   GGUF. The current server reports `speculative: false`.
+3. The chat now retains six successful turns while leaving `--ctx-size` at 8,192. Add
+   summarization only if product requirements call for longer conversational memory.
+4. The checksum-verified Qwen3.6 MTP Q4_K_M artifact was tested. It improved predictable
+   sequences but not average natural advisor latency and left only 808 MiB VRAM free, so
+   it remains an opt-in benchmark asset rather than the production default.
 5. Clarify multimodal scope. The deployed command has no `mmproj` file and the dashboard
    sends text only. Add the matching projection asset only if image input becomes a real
    product requirement.
-6. Track cold-prompt latency separately from warm-prefix latency. Measurements ranged
-   from sub-second cached turns to more than 30 seconds for a 236-token uncached prompt.
+6. Continue tracking startup, uncached, and warm-prefix latency separately. Eager loading
+   moved the old first-prompt page-in penalty into a roughly 21-second startup phase.
 7. Consider exposing llama.cpp load progress in the renderer if managed autostart becomes
    the normal launch path. Current health copy distinguishes startup/unavailable states
    but does not report model-load percentage.

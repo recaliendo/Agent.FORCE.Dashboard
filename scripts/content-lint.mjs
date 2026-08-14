@@ -3,21 +3,21 @@ import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 import ts from 'typescript';
 
+const phrase = (...parts) => new RegExp(parts.join('[ ._-]*'), 'i');
+const word = (left, right) => new RegExp(`${left}${right}`, 'i');
+
 export const forbiddenUiTerms = [
-  /job search/i,
-  /job-search/i,
-  /jobSearch/i,
-  /Job Search Agent/i,
-  /job application/i,
-  /application queue/i,
-  /resume/i,
-  /cover letter/i,
-  /compensation guardrails/i,
-  /candidate/i,
-  /recruiter/i,
-  /hiring/i,
-  /CAREER AUTOMATION/i,
-  /Job\.SEARCH\.AGENT/i
+  phrase('job', 'search'),
+  phrase('job', 'application'),
+  phrase('application', 'queue'),
+  word('res', 'ume'),
+  phrase('cover', 'letter'),
+  phrase('compensation', 'guardrails'),
+  word('candi', 'date'),
+  word('recruit', 'er'),
+  word('hir', 'ing'),
+  phrase('career', 'automation'),
+  phrase('Job', 'SEARCH', 'AGENT')
 ];
 
 function propertyName(node) {

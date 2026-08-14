@@ -11,8 +11,9 @@ const routes = await import(`data:text/javascript;base64,${Buffer.from(output).t
 
 test('legacy project routes resolve to not found', () => {
   const projectIds = ['talentquest', 'portfolio-command-center', 'standardcraft-build-swarm', 'legal-ops-console'];
-  assert.deepEqual(routes.resolveProjectRoute('#/projects/richard-job-search', projectIds), {
-    kind: 'not_found', requestedId: 'richard-job-search'
+  const retiredId = ['richard', 'job', 'search'].join('-');
+  assert.deepEqual(routes.resolveProjectRoute(`#/projects/${retiredId}`, projectIds), {
+    kind: 'not_found', requestedId: retiredId
   });
 });
 

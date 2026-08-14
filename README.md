@@ -2,7 +2,7 @@
 
 Agent FORCE Dashboard is a desktop launch station for many agent projects: Codex builds, Claude Code builds, hybrid workflows, local scripts, and manual operating playbooks.
 
-The app opens on **Choose your agent project.** Richard Job Search Agent is only one sample project; the architecture supports a fleet of project cockpits.
+The app opens on **Choose your agent project.** The architecture supports a fleet of independent project cockpits.
 
 The visual system is an original galactic command-center interface with graphite panels, blue holographic borders, green readiness accents, telemetry, mentor guidance, connector posture, and daily reports. It does not use licensed franchise logos, characters, imagery, quotes, or protected assets.
 
@@ -14,7 +14,7 @@ The visual system is an original galactic command-center interface with graphite
 4. Agent FORCE Council: run reusable QA, engineering, marketing, product, and executive review agents against any project scope.
 5. Daily Report Center: generate, copy, save, and view recent project-scoped daily reports with latest Council signals.
 6. Agent FORCE Chat: persistent project-scoped chat through the configured local OpenAI-compatible Qwen endpoint.
-7. Mentor Guidance: deterministic local guidance from Master Verdant for Ricky Skywalker, including Council risk context.
+7. Mentor Guidance: deterministic local guidance with Council risk context.
 8. Launch Console: open safe URLs, reveal local paths, and keep commands gated.
 
 ## Product Flow
@@ -47,54 +47,16 @@ The interface uses performance-safe CSS depth rather than heavy 3D dependencies.
 - Drawers and modals layer above the cockpit with spatial shadowing while preserving keyboard focus and readable status context.
 - Reduced motion is respected through `prefers-reduced-motion`, and high-motion tilt/slide effects are disabled for users who prefer less motion.
 
-## 3D Character System
-
-Agent FORCE now includes original humanized pseudo-3D character agents built with React, inline SVG, and CSS, without downloaded models, official imagery, protected likenesses, logos, weapons, ships, quotes, or franchise art.
-
-Characters created:
-
-- Princess Leia: QA Signal Commander for QA findings, readiness warnings, severity triage, and retest flow.
-- Luke Skywalker: Systems Repair Engineer for engineering repair plans, build/test repair posture, and Codex repair prompts.
-- ChewMacka: Brand Signal Amplifier for marketing, SEO, readability, navigation clarity, and color-system integrity.
-- Han Solo: Product Navigator for customer need, product direction, next best action, and roadmap priority.
-- CEO: Executive Command Authority for release readiness, executive decision, approval, and conditions.
-- Master Verdant: Strategic Mentor Hologram for guidance, warnings, and next-step discovery.
-
-Where they appear:
-
-- Launch Bay: Master Verdant appears in the Mentor Guidance panel without overpowering project selection.
-- Project Cockpit Overview: the active advisor changes based on the strongest project signal, such as QA risk, engineering repair, product clarity, connector risk, or approval state.
-- Council tab: the Council Chamber shows the five review roles with state, finding count, repair count, latest output, workflow progress, role details, and action buttons.
-- Council tab: selected operators open a role dossier with active state, owned findings, assigned repairs, surfaces owned, latest output, and direct action.
-- Findings panel: each finding shows the owning character next to the finding context.
-- Daily Report: Advisor Signal shows the active character, reason, and next action in a compact report-safe format.
-
-States and interactions:
-
-- Supported states are idle, scanning, repairing, reviewing, warning, blocked, approved, and completed.
-- Character action buttons navigate to the correct cockpit surface: QA findings, Codex prompt, executive decision, launch actions, connector hub, daily report, or mentor overview.
-- Council character cards are keyboard focusable, clickable for role details, and include separate action buttons.
-- Advisor cards include owner and next-move readouts so the character art reinforces orientation instead of replacing workflow text.
-
-Performance and accessibility:
-
-- The system uses lightweight inline SVG figures, CSS hologram layering, and CSS 3D transforms, not WebGL or large model assets.
-- The latest polish pass adds studio-style SVG gradients, rim lighting, facial expression states, face highlights, eye glints, uniform belts/badges, star-map backdrops, cinematic panel spotlights, and selected-operator Council dossiers.
-- Decorative visual layers are hidden from assistive technology while role, state, reason, and actions remain readable text.
-- State is never color-only; each character has a text status badge.
-- `prefers-reduced-motion` disables character orbit, scan, glow, pulse, and hover lift animations.
-- The non-WebGL CSS implementation is the fallback path by design.
-
 ## Agent FORCE Council
 
 The Council is a deterministic local review system that produces structured findings, executive direction, Markdown reports, and copyable Codex repair prompts.
 
-Council agent builds:
+Council roles:
 
-- Princess Leia: QA Software Agent Optimizer for defects, release risk, accessibility, connector posture, localStorage safety, launch actions, and retest instructions.
-- Luke Skywalker: Expert Level Software Engineer for TypeScript, React, Electron safety, localStorage, build, and repair planning.
-- ChewMacka: Marketing Executive Agent for SEO, readability, brand clarity, navigation, conversion copy, and executive trust.
-- Han Solo: Chief Product Officer for customer need, product direction, workflow value, prioritization, and speed-to-value.
+- QA Optimizer for defects, release risk, accessibility, connector posture, localStorage safety, launch actions, and retest instructions.
+- Software Engineer for TypeScript, React, Electron safety, localStorage, build, and repair planning.
+- Marketing Executive for SEO, readability, brand clarity, navigation, conversion copy, and executive trust.
+- Product Lead for customer need, product direction, workflow value, prioritization, and speed-to-value.
 - CEO: final release decision-maker using abstract executive lenses, not real-person impersonation.
 
 The Council can target:
@@ -282,9 +244,5 @@ Manual QA:
 - Generate a daily report after a Council run and confirm the latest Council signal appears.
 - Confirm Mentor Guidance references Council state.
 - Confirm no official franchise assets, quotes, logos, or protected likenesses are used.
-- Confirm Master Verdant appears in Launch Bay mentor guidance and Ask Mentor still opens guidance.
-- Confirm Overview Advisor Signal changes based on Council risk, repair plans, product gaps, connector gaps, and approval state.
-- Confirm Council Chamber character cards are clickable, keyboard focusable, and their action buttons open the expected panel.
-- Confirm findings show the correct owning character.
-- Confirm Daily Report Advisor Signal opens the expected cockpit tab.
-- Confirm reduced motion disables character orbit, scan, glow, pulse, and hover lift animations.
+- Confirm Launch Bay mentor guidance and Ask Mentor still open guidance.
+- Confirm findings show the correct functional Council owner.

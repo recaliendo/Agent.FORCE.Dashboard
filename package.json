@@ -16,6 +16,8 @@
     "desktop:preview": "tsc && vite build && tsc -p tsconfig.node.json && electron .",
     "dist": "tsc && vite build && tsc -p tsconfig.node.json && electron-builder",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.node.json --noEmit",
+    "lint:content": "node scripts/content-lint.mjs",
+    "test": "tsc -p tsconfig.node.json && node --test tests/*.test.mjs",
     "test:sse": "tsc -p tsconfig.node.json && node --test tests/sse-parser.test.mjs"
   },
   "dependencies": {

@@ -264,9 +264,9 @@ function buildMarketingFindings(project: AgentProject) {
       'Medium',
       'Portfolio value proposition should be immediately scannable',
       'Brand and Conversion',
-      'Portfolio projects need recruiter-facing clarity, credibility, and scan speed.',
+      'Portfolio projects need visitor-facing clarity, credibility, and scan speed.',
       'Keep the first-screen message focused on role positioning, proof points, and clear next click.',
-      'Portfolio cockpit and report call out recruiter scanability and credibility checks.',
+      'Portfolio cockpit and report call out visitor scanability and credibility checks.',
       'software_engineer'
     ));
   }
@@ -305,7 +305,7 @@ function buildProductFindings(project: AgentProject) {
     ));
   }
 
-  if (!/customer|user|ricky|client|recruiter|student|buyer|case|mission/i.test(`${project.objective} ${project.missionBrief}`)) {
+  if (!/customer|user|ricky|client|visitor|student|buyer|case|mission/i.test(`${project.objective} ${project.missionBrief}`)) {
     findings.push(finding(
       project,
       'product-lead',

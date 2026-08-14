@@ -1,64 +1,59 @@
-flowchart LR
-  subgraph Dev["Development and build"]
-    PNPM["pnpm scripts<br/>package.json:8-18"]
-    VITE["Vite renderer server/build<br/>vite.config.ts:4-14"]
-    TSC["Electron TypeScript compile<br/>tsconfig.node.json:2-16"]
-    BUILDER["electron-builder installers<br/>package.json:38-57"]
-    PNPM --> VITE
-    PNPM --> TSC
-    VITE --> BUILDER
-    TSC --> BUILDER
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Inter, Segoe UI, sans-serif","fontSize":"17px","primaryColor":"#eef7f2","primaryTextColor":"#10221a","primaryBorderColor":"#2f7d57","lineColor":"#4c6473","secondaryColor":"#eef4f8","tertiaryColor":"#fff7df","clusterBkg":"#f7f9fb","clusterBorder":"#aab8c2"},"flowchart":{"curve":"basis","nodeSpacing":28,"rankSpacing":52,"htmlLabels":true}}}%%
+flowchart TB
+  USER["Operator"] -->|prompt| CHAT
+
+  subgraph EXPERIENCE["AI Command Experience"]
+    direction LR
+    CHAT["Ask Agent FORCE"] --> CONTEXT["Bounded context<br/>project + readiness + 6 turns"]
+    UI["Incremental Markdown<br/>full-width output"]
+    STATE["Visible lifecycle<br/>connect / evaluate / stream / done"]
   end
 
-  subgraph Desktop["Agent FORCE Electron application"]
-    MAIN["Electron main<br/>config, IPC, HTTP, OS actions<br/>electron/main.ts:18-287"]
-    PRELOAD["Context-isolated preload bridge<br/>electron/preload.ts:1-20"]
-    RENDERER["React renderer<br/>App, registry, rules, localStorage<br/>src/main.tsx:1-10<br/>src/App.tsx:35-170"]
-    STORAGE[("Renderer localStorage<br/>reports, Council, checks, activity<br/>src/storage.ts:24-38<br/>src/council/councilStorage.ts:4-29")]
-    MAIN <-->|"invoke/response<br/>agent-force:*<br/>electron/main.ts:161-287"| PRELOAD
-    PRELOAD <-->|"window.agentForce<br/>per-request stream events<br/>electron/preload.ts:3-19"| RENDERER
-    RENDERER <--> STORAGE
+  subgraph DESKTOP["Secure Desktop Runtime"]
+    direction LR
+    PRELOAD["Context-isolated preload"]
+    STREAM["Per-request stream channel"]
+    CLIENT["OpenAI-compatible HTTP client"]
+    GUARD["Loopback guard + bearer auth"]
+    SSE["Hostile-split-safe SSE parser"]
+    RUNTIME["Managed runtime controller"]
   end
 
-  subgraph Inference["Inference provider"]
-    RUNTIME["Managed llama-server child<br/>OpenAI-compatible API<br/>electron/localLlmRuntime.ts:69-122"]
-    MODEL[("Qwen UD-Q4_K_M GGUF<br/>8192 context, 12 GPU layers<br/>electron/localLlmRuntime.ts:36-45<br/>electron/localLlmRuntime.ts:81-103")]
-    GPU["RTX 4060 host GPU<br/>configured offload: 12 layers<br/>electron/localLlmRuntime.ts:86-87"]
-    HOSTED["Hosted OpenAI-compatible provider<br/>LLM_BASE_URL<br/>electron/main.ts:36-47"]
-    RUNTIME --> MODEL
-    RUNTIME --> GPU
+  subgraph LOCAL["Default Local Provider"]
+    direction LR
+    SERVER["llama-server<br/>127.0.0.1:8080"]
+    MODEL["Qwen3.6-35B-A3B<br/>UD-Q4_K_M / 8,192 context"]
+    COMPUTE["RTX 4060: 12 layers<br/>CPU/RAM: remainder"]
   end
 
-  MAIN -->|"GET /models, POST /chat/completions<br/>Bearer in main only<br/>electron/main.ts:57-119"| RUNTIME
-  MAIN -.->|"same HTTP transport when non-loopback<br/>electron/localLlmRuntime.ts:155-162"| HOSTED
-  MAIN -->|"spawn/stop local child<br/>electron/localLlmRuntime.ts:108-121<br/>electron/localLlmRuntime.ts:165-169"| RUNTIME
-
-  subgraph ExternalActions["External action boundary"]
-    SHELL["OS URL/path shell<br/>electron/main.ts:152-181"]
-    CMD["Optional arbitrary command child<br/>electron/main.ts:183-204"]
+  subgraph CONTROLS["Configuration and Reliability Controls"]
+    direction LR
+    CONFIG["Environment-only provider config"]
+    TIMEOUT["5 s connect<br/>inactivity abort"]
+    CANCEL["Per-request cancel"]
+    STORE[("Ignored secrets<br/>GGUF + runtime logs")]
+    HOSTED["Optional hosted<br/>OpenAI-compatible provider"]
   end
-  MAIN --> SHELL
-  MAIN --> CMD
 
-  subgraph Connectors["Current connector representation"]
-    SEED["Static ProjectConnector records<br/>src/data/seedProjects.ts:3-415"]
-    CHECK["Reference-presence check only<br/>src/App.tsx:684-708"]
-    OPEN["Generic URL/path/command open<br/>src/App.tsx:1694-1707"]
-    NOMCP["No MCP client/adapter/tool registry<br/>src/types.ts:26-38<br/>package.json:20-36"]
-    SEED --> CHECK
-    SEED --> OPEN
-    NOMCP -.-> SEED
-  end
-  RENDERER --> SEED
-  OPEN --> PRELOAD
+  CONTEXT -->|typed messages| PRELOAD
+  PRELOAD --> CLIENT --> GUARD -->|POST /chat/completions| SERVER
+  SERVER --> SSE --> STREAM --> STATE --> UI
+  UI --> OUTCOME["Operator receives<br/>a visible answer"]
+  RUNTIME -->|start + probe| SERVER
+  SERVER --> MODEL --> COMPUTE
+  CONFIG --> CLIENT
+  CONFIG --> RUNTIME
+  STORE --> CONFIG
+  STORE --> RUNTIME
+  HOSTED -. LLM_BASE_URL swap .-> CLIENT
+  TIMEOUT --> CLIENT
+  CHAT -. cancel .-> CANCEL --> CLIENT
 
-  subgraph Synthetic["Renderer-generated operational content"]
-    MENTOR["Deterministic mentor rules<br/>src/mentorEngine.ts:4-114"]
-    COUNCIL["Deterministic Council rules<br/>src/council/councilEngine.ts:534-570"]
-    REPORT["Deterministic report templates<br/>src/reportEngine.ts:55-151"]
-  end
-  RENDERER --> MENTOR
-  RENDERER --> COUNCIL
-  RENDERER --> REPORT
-  COUNCIL --> STORAGE
-  REPORT --> STORAGE
+  classDef primary fill:#e2f5e9,stroke:#2f7d57,color:#10221a,stroke-width:2px;
+  classDef boundary fill:#fff7df,stroke:#b58812,color:#332600;
+  classDef runtime fill:#e8f1f7,stroke:#3b6d8c,color:#102331;
+  classDef data fill:#f2edf8,stroke:#76559b,color:#241733;
+  class CHAT,UI,STATE,OUTCOME primary;
+  class PRELOAD,STREAM,CANCEL,GUARD boundary;
+  class CLIENT,SSE,TIMEOUT,RUNTIME,SERVER,MODEL,COMPUTE runtime;
+  class STORE,CONTEXT,CONFIG data;

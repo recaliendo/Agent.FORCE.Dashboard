@@ -1,0 +1,59 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Inter, Segoe UI, sans-serif","fontSize":"17px","primaryColor":"#eef7f2","primaryTextColor":"#10221a","primaryBorderColor":"#2f7d57","lineColor":"#4c6473","secondaryColor":"#eef4f8","tertiaryColor":"#fff7df","clusterBkg":"#f7f9fb","clusterBorder":"#aab8c2"},"flowchart":{"curve":"basis","nodeSpacing":28,"rankSpacing":52,"htmlLabels":true}}}%%
+flowchart TB
+  USER["Operator"] -->|prompt| CHAT
+
+  subgraph EXPERIENCE["AI Command Experience"]
+    direction LR
+    CHAT["Ask Agent FORCE"] --> CONTEXT["Bounded context<br/>project + readiness + 6 turns"]
+    UI["Incremental Markdown<br/>full-width output"]
+    STATE["Visible lifecycle<br/>connect / evaluate / stream / done"]
+  end
+
+  subgraph DESKTOP["Secure Desktop Runtime"]
+    direction LR
+    PRELOAD["Context-isolated preload"]
+    STREAM["Per-request stream channel"]
+    CLIENT["OpenAI-compatible HTTP client"]
+    GUARD["Loopback guard + bearer auth"]
+    SSE["Hostile-split-safe SSE parser"]
+    RUNTIME["Managed runtime controller"]
+  end
+
+  subgraph LOCAL["Default Local Provider"]
+    direction LR
+    SERVER["llama-server<br/>127.0.0.1:8080"]
+    MODEL["Qwen3.6-35B-A3B<br/>UD-Q4_K_M / 8,192 context"]
+    COMPUTE["RTX 4060: 12 layers<br/>CPU/RAM: remainder"]
+  end
+
+  subgraph CONTROLS["Configuration and Reliability Controls"]
+    direction LR
+    CONFIG["Environment-only provider config"]
+    TIMEOUT["5 s connect<br/>inactivity abort"]
+    CANCEL["Per-request cancel"]
+    STORE[("Ignored secrets<br/>GGUF + runtime logs")]
+    HOSTED["Optional hosted<br/>OpenAI-compatible provider"]
+  end
+
+  CONTEXT -->|typed messages| PRELOAD
+  PRELOAD --> CLIENT --> GUARD -->|POST /chat/completions| SERVER
+  SERVER --> SSE --> STREAM --> STATE --> UI
+  UI --> OUTCOME["Operator receives<br/>a visible answer"]
+  RUNTIME -->|start + probe| SERVER
+  SERVER --> MODEL --> COMPUTE
+  CONFIG --> CLIENT
+  CONFIG --> RUNTIME
+  STORE --> CONFIG
+  STORE --> RUNTIME
+  HOSTED -. LLM_BASE_URL swap .-> CLIENT
+  TIMEOUT --> CLIENT
+  CHAT -. cancel .-> CANCEL --> CLIENT
+
+  classDef primary fill:#e2f5e9,stroke:#2f7d57,color:#10221a,stroke-width:2px;
+  classDef boundary fill:#fff7df,stroke:#b58812,color:#332600;
+  classDef runtime fill:#e8f1f7,stroke:#3b6d8c,color:#102331;
+  classDef data fill:#f2edf8,stroke:#76559b,color:#241733;
+  class CHAT,UI,STATE,OUTCOME primary;
+  class PRELOAD,STREAM,CANCEL,GUARD boundary;
+  class CLIENT,SSE,TIMEOUT,RUNTIME,SERVER,MODEL,COMPUTE runtime;
+  class STORE,CONTEXT,CONFIG data;

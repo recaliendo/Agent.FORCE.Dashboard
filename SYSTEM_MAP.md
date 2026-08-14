@@ -1,6 +1,11 @@
 # Agent FORCE Dashboard System Map
 
-Phase 0 snapshot of the current working tree on 2026-08-12. This document maps the Electron dashboard only. The supplied StandardCraft description is accepted as verified input and is not re-derived here.
+This is the historical Phase 0 deep-dive captured on 2026-08-12. Its detailed findings are
+retained as an audit trail and may not reflect the reconciled fleet or later QA work.
+
+For the current 2026-08-13 executive architecture, use the canonical diagrams in
+`artifacts/diagrams/`: AI infrastructure, Agent FORCE and agent infrastructure, and user and
+operations. `SYSTEM_MAP.mmd` now mirrors the current AI infrastructure view.
 
 ## 1. Executive summary
 

@@ -14,7 +14,8 @@
   project-scoped localStorage data remains addressable. TalentQuest received a new stable ID.
 - Grounded TalentQuest at source commit `55e753ead434fee03feedb1b6b55a1ff230be7fa`.
   Source evidence and explicit unknowns are recorded in `TALENTQUEST_SOURCING.md`.
-- Kept StandardCraft metadata-only: no service is presented as authenticated or live.
+- Initially kept StandardCraft metadata-only; the final source-backed connector reconciliation
+  below supersedes that initial registry posture.
 - Added the exact Halo repository as an outbound navigation target. Its neutral product
   label is used for visible text, title, ARIA label, and tooltip; the target is omitted from
   exported renderer configuration.
@@ -62,3 +63,24 @@
 - The typed mentor intent gateway requires changing the preload API and widening the IPC
   bridge from raw chat messages to an intent/payload request contract. The brief classifies
   that as `ESCALATE`, so no such interface change has been made without explicit approval.
+
+## Final infrastructure reconciliation
+
+- Re-audited the fleet against current authenticated GitHub repository state and recorded
+  commit-level evidence in `REPOSITORY_INFRASTRUCTURE_AUDIT.md`.
+- Expanded StandardCraft from metadata-only to an evidence-qualified infrastructure map:
+  GitHub, Netlify, Supabase, Stripe, SMTP, GitHub Actions, the StandardCraft Ops MCP, and the
+  provider-neutral analytics plan.
+- Added source-backed TalentQuest connectors for GitHub, Supabase, and Lovable Cloud auth.
+- Kept unverified services out of the `connected` state. Only reachable GitHub repositories
+  and the live Netlify production endpoint are marked connected.
+- Preserved Halo as navigation-only and DivorceAgent repository status as `UNKNOWN`; no
+  sensitive repository content or ambiguous repository association was imported.
+- Cataloged all eleven repositories exposed by the authenticated owner. Empty, unrelated,
+  and separate prototype repositories remain outside the four-project fleet by design.
+- Added connector descriptions and surfaced `connected`, `needs_setup`, and `unknown` as
+  separate counts in the StandardCraft Connector Hub.
+- Expanded assistant responses to the full transcript width while retaining narrower,
+  right-aligned user prompts. Added a layout contract test to prevent regression.
+- Added three Mermaid source/SVG/PNG architecture views for CTO review: AI infrastructure,
+  Agent FORCE and agent infrastructure, and user and operations.

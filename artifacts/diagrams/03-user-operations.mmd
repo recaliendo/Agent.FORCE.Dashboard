@@ -1,0 +1,59 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Inter, Segoe UI, sans-serif","fontSize":"17px","primaryColor":"#eef7f2","primaryTextColor":"#10221a","primaryBorderColor":"#2f7d57","lineColor":"#536574","secondaryColor":"#eef4f8","tertiaryColor":"#fff7df","clusterBkg":"#f7f9fb","clusterBorder":"#aab8c2"},"flowchart":{"curve":"basis","nodeSpacing":26,"rankSpacing":46,"htmlLabels":true}}}%%
+flowchart TB
+  subgraph USER["User Journey"]
+    direction LR
+    U1["1. Choose project"] --> U2["2. Review readiness<br/>risk + evidence"]
+    U2 --> U3["3. Ask Agent FORCE"]
+    U3 --> U4["4. Read streaming answer"]
+    U4 --> U5["5. Approve next action"]
+    U5 --> U6["6. Review result<br/>report / Council / activity"]
+  end
+
+  subgraph APP["Agent FORCE Operations"]
+    direction LR
+    A1["Project route + registry"] --> A2["Readiness collectors"]
+    A2 --> A3["Deterministic action card"]
+    A1 --> A4["Bounded project context"]
+    A4 --> A5["Qwen stream lifecycle"]
+    A5 --> A6["Incremental Markdown output"]
+    A3 --> A7["Connector / Council / report / launch workflow"]
+  end
+
+  subgraph OPS["Platform and Delivery Operations"]
+    direction LR
+    O1["GitHub source evidence"] --> O2["Connector qualification<br/>live / setup / unknown"]
+    O2 --> O3["Fleet registry update"]
+    O4["llama-server health"] --> O5["Authenticated local inference"]
+    O5 --> O6["SSE parsing + cancellation"]
+    O7["QA gates<br/>typecheck / tests / content lint / build"] --> O8["Responsive evidence<br/>1440 + 1024"]
+  end
+
+  U1 --> A1
+  A2 --> U2
+  U3 --> A5
+  A6 --> U4
+  A3 --> U5
+  U5 --> A7
+  A7 --> U6
+
+  O3 --> A1
+  O6 --> A5
+  O8 --> A7
+
+  POLICY["Security policy<br/>no secrets in renderer<br/>safe egress only<br/>sensitive ingestion blocked"]
+  POLICY -. governs .-> A1
+  POLICY -. governs .-> A5
+  POLICY -. governs .-> A7
+  POLICY -. governs .-> O2
+
+  FEEDBACK["Observed outcomes"] -->|reports + activity| O2
+  U6 --> FEEDBACK
+
+  classDef user fill:#e2f5e9,stroke:#2f7d57,color:#10221a,stroke-width:2px;
+  classDef app fill:#e8f1f7,stroke:#3b6d8c,color:#102331;
+  classDef ops fill:#fff7df,stroke:#b58812,color:#332600;
+  classDef policy fill:#f2edf8,stroke:#76559b,color:#241733,stroke-width:2px;
+  class U1,U2,U3,U4,U5,U6 user;
+  class A1,A2,A3,A4,A5,A6,A7 app;
+  class O1,O2,O3,O4,O5,O6,O7,O8,FEEDBACK ops;
+  class POLICY policy;

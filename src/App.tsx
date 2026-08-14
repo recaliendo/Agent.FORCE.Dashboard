@@ -975,12 +975,15 @@ function getCockpitTabBadges(
   connectorChecks: Record<string, ConnectorHealthCheck>,
   activity: ProjectActivity[]
 ): CockpitTabBadgeMap {
-  const connectorAttention = project.connectors.filter((connector) =>
-    connector.status === 'attention'
-    || connector.status === 'needs_setup'
-    || connector.status === 'unknown'
-    || (!connector.url && !connector.path && !connector.command)
-  ).length;
+  const connectorAttentionIds = new Set(project.connectors
+    .filter((connector) =>
+      connector.status === 'attention'
+      || connector.status === 'needs_setup'
+      || connector.status === 'unknown'
+      || (!connector.url && !connector.path && !connector.command)
+      || (!connectorChecks[connector.id] && connector.status !== 'connected')
+    )
+    .map((connector) => connector.id));
   const councilAttention = councilRun?.findings.filter((finding) =>
     (finding.severity === 'Critical' || finding.severity === 'High')
     && finding.status !== 'fixed'
@@ -990,11 +993,10 @@ function getCockpitTabBadges(
     agent.launchActions.length === 0 || agent.status === 'Needs Configuration' || agent.status === 'Draft'
   ).length;
   const launchGap = project.launchActions.length === 0 ? 1 : 0;
-  const uncheckedConnectors = project.connectors.filter((connector) => !connectorChecks[connector.id] && connector.status !== 'connected').length;
 
   return {
     agents: agentConfiguration,
-    connectors: connectorAttention + uncheckedConnectors,
+    connectors: connectorAttentionIds.size,
     daily_report: savedReports.length ? 0 : 1,
     council: councilAttention,
     launch_actions: launchGap,

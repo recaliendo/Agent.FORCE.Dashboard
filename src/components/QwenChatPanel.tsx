@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bot, MessageCircle, RefreshCw, Send, ShieldCheck, Sparkles, Square, Trash2 } from 'lucide-react';
 import type { AgentProject, QwenChatMessage, QwenConfigResult } from '../types';
 import { evaluateReadiness } from '../readinessEngine';
+import { StreamingMarkdown } from './StreamingMarkdown';
+import { Button, Card, StatusDot } from './ui/Primitives';
 
 const SYSTEM_PROMPT =
   'You are Agent FORCE Qwen Chat, a local assistant embedded in a multi-project agent dashboard. Be concise, practical, and safety-aware. Do not invent project facts, credentials, secrets, or completion claims.';
@@ -308,7 +310,7 @@ export function QwenChatPanel({ project, onActivity }: QwenChatPanelProps) {
   }
 
   return (
-    <section className="qwen-chat-workflow qwen-chat-landing glass-panel holo-border" aria-label="Agent FORCE generative chat">
+    <Card className="qwen-chat-workflow qwen-chat-landing" aria-label="Agent FORCE generative chat">
       <div className="section-heading qwen-chat-heading">
         <div className="qwen-heading-identity">
           <span className="qwen-mark"><Sparkles size={20} /></span>
@@ -318,13 +320,16 @@ export function QwenChatPanel({ project, onActivity }: QwenChatPanelProps) {
           </div>
         </div>
         <div className="report-actions">
-          <button onClick={checkHealth} title="Check model health"><RefreshCw size={16} /> Health</button>
-          <button onClick={clearChat} disabled={isSending || messages.length === 0} title="Clear conversation"><Trash2 size={16} /> Clear</button>
+          <Button icon={<RefreshCw size={16} />} onClick={checkHealth} title="Check model health">Health</Button>
+          <Button icon={<Trash2 size={16} />} onClick={clearChat} disabled={isSending || messages.length === 0} title="Clear conversation">Clear</Button>
         </div>
       </div>
 
       <div className="qwen-runtime-bar" aria-live="polite">
-        <span className={`qwen-runtime-dot ${status.startsWith('Ready') || config?.runtime?.running ? 'online' : ''}`} />
+        <StatusDot
+          tone={status.startsWith('Ready') || config?.runtime?.running ? 'success' : status.startsWith('Unavailable') ? 'danger' : 'warning'}
+          label={status.startsWith('Ready') || config?.runtime?.running ? 'Online' : 'Runtime status'}
+        />
         <strong>{config?.modelName?.replace('Qwen/', '') ?? 'Qwen3.6-35B-A3B'}</strong>
         <span>{status}</span>
       </div>
@@ -338,7 +343,11 @@ export function QwenChatPanel({ project, onActivity }: QwenChatPanelProps) {
                 className={`qwen-message qwen-${message.role} ${message.streamState ? `state-${message.streamState}` : ''}`}
               >
                 <span>{message.role === 'assistant' ? <Bot size={15} /> : message.role === 'user' ? <MessageCircle size={15} /> : <ShieldCheck size={15} />} {message.role}</span>
-                <p>{message.content || (message.streamState ? STREAM_STATE_COPY[message.streamState] : '')}</p>
+                {message.content ? (
+                  <StreamingMarkdown content={message.content} complete={message.streamState === 'complete'} />
+                ) : (
+                  <p>{message.streamState ? STREAM_STATE_COPY[message.streamState] : ''}</p>
+                )}
                 {message.content && message.streamState && (
                   <p className="qwen-state-copy">{STREAM_STATE_COPY[message.streamState]}</p>
                 )}
@@ -368,23 +377,24 @@ export function QwenChatPanel({ project, onActivity }: QwenChatPanelProps) {
             disabled={isSending}
             rows={2}
           />
-          <button
+          <Button
+            variant={isSending ? 'danger' : 'primary'}
             className={isSending ? 'qwen-cancel-action' : 'primary-action'}
             onClick={isSending ? cancelMessage : sendMessage}
             disabled={!isSending && !prompt.trim()}
             title={isSending ? 'Cancel generation' : 'Send message'}
+            icon={isSending ? <Square size={15} fill="currentColor" /> : <Send size={16} />}
           >
-            {isSending ? <Square size={15} fill="currentColor" /> : <Send size={16} />}
             {isSending ? 'Cancel' : 'Send'}
-          </button>
+          </Button>
         </div>
       </div>
 
       <div className="qwen-quick-prompts" aria-label="Suggested prompts">
         {QUICK_PROMPTS.map((item) => (
-          <button key={item.label} onClick={() => setPrompt(item.prompt)} disabled={isSending}>{item.label}</button>
+          <Button key={item.label} variant="ghost" onClick={() => setPrompt(item.prompt)} disabled={isSending}>{item.label}</Button>
         ))}
       </div>
-    </section>
+    </Card>
   );
 }

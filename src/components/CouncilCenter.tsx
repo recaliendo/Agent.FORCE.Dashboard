@@ -19,6 +19,7 @@ import type {
   CouncilTargetScope
 } from '../council/councilTypes';
 import type { AgentProject } from '../types';
+import { EmptyState, Tabs } from './ui/Primitives';
 
 const scopeOptions: { value: CouncilTargetScope; label: string }[] = [
   { value: 'whole_project', label: 'Whole project' },
@@ -194,18 +195,22 @@ export function CouncilCenter({ project, runs, onRun, initialView = 'findings' }
         ))}
       </div>
 
-      <div className="council-view-tabs" role="tablist" aria-label="Council review views">
-        <button className={activeView === 'findings' ? 'active' : ''} onClick={() => setActiveView('findings')}>Findings</button>
-        <button className={activeView === 'decision' ? 'active' : ''} onClick={() => setActiveView('decision')}>Executive Decision</button>
-        <button className={activeView === 'report' ? 'active' : ''} onClick={() => setActiveView('report')}>Council Report</button>
-        <button className={activeView === 'prompt' ? 'active' : ''} onClick={() => setActiveView('prompt')}>Codex Prompt</button>
+      <div className="council-view-tabs">
+        <Tabs
+          activeId={activeView}
+          onChange={setActiveView}
+          label="Council review views"
+          items={[
+            { id: 'findings', label: 'Findings' },
+            { id: 'decision', label: 'Executive Decision' },
+            { id: 'report', label: 'Council Report' },
+            { id: 'prompt', label: 'Codex Prompt' }
+          ]}
+        />
       </div>
 
       {!latestRun ? (
-        <div className="report-empty-state">
-          <strong>No Council run yet.</strong>
-          <span>Run the Council to generate project-scoped findings, a CEO decision, a Markdown report, and a Codex repair prompt.</span>
-        </div>
+        <EmptyState title="No Council run yet" detail="Run the Council to generate project-scoped findings, an executive decision, a Markdown report, and a Codex repair prompt." />
       ) : (
         <div className="council-workspace">
           {activeView === 'findings' && <CouncilFindings findings={latestRun.findings} />}
@@ -230,7 +235,7 @@ export function CouncilCenter({ project, runs, onRun, initialView = 'findings' }
             ))}
           </div>
         ) : (
-          <p className="empty-state">Council history is stored locally and scoped only to this project.</p>
+          <EmptyState title="No Council history" detail="Council history is stored locally and scoped only to this project." />
         )}
       </div>
     </section>
@@ -240,10 +245,7 @@ export function CouncilCenter({ project, runs, onRun, initialView = 'findings' }
 function CouncilFindings({ findings }: { findings: CouncilFinding[] }) {
   if (!findings.length) {
     return (
-      <div className="report-empty-state">
-        <strong>No findings detected.</strong>
-        <span>The deterministic Council rules did not flag defects for this run.</span>
-      </div>
+      <EmptyState title="No findings detected" detail="The deterministic Council rules did not flag defects for this run." />
     );
   }
 
@@ -292,7 +294,7 @@ function CouncilDecision({ run }: { run: CouncilRun }) {
   const decision = run.executiveDecision;
 
   if (!decision) {
-    return <div className="report-empty-state"><strong>Executive decision pending.</strong></div>;
+    return <EmptyState title="Executive decision pending" />;
   }
 
   return (
@@ -327,7 +329,7 @@ function ReportList({ title, items }: { title: string; items: string[] }) {
       {items.length ? (
         <ul>{items.map((item) => <li key={item}>{item}</li>)}</ul>
       ) : (
-        <p className="empty-state">No items for this section.</p>
+        <EmptyState title="No items for this section" />
       )}
     </article>
   );

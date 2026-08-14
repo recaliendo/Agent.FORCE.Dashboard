@@ -29,12 +29,12 @@ import {
   SlidersHorizontal,
   Sparkles,
   Terminal,
-  X,
-  Zap
+  X
 } from 'lucide-react';
 import { seedProjects } from './data/seedProjects';
 import { CouncilCenter, type CouncilCenterView } from './components/CouncilCenter';
 import { QwenChatPanel } from './components/QwenChatPanel';
+import { ActionCard, Badge, EmptyState, ListRow, StatTile, Tabs } from './components/ui/Primitives';
 import { generateCouncilRun, summarizeCouncilRun } from './council/councilEngine';
 import { safeReadCouncilRuns, safeWriteCouncilRuns } from './council/councilStorage';
 import {
@@ -519,7 +519,7 @@ function ProjectLaunchBay({
             <div className="project-card-inner">
               <div className="project-card-topline">
                 <span className="callsign">{project.callsign}</span>
-                <span className={`status-pill status-${project.status.toLowerCase().replace(/\s+/g, '-')}`}>{project.status}</span>
+                <Badge tone={project.status === 'Ready' ? 'success' : project.status === 'Unknown' ? 'warning' : 'info'}>{project.status}</Badge>
               </div>
               <h2>{project.name}</h2>
               <p>{project.objective}</p>
@@ -785,9 +785,7 @@ function ProjectCockpit({ project, onBack, onSwitchProject, onLaunch, consoleLin
         <ProjectCommandHeader
           project={project}
           councilRun={currentCouncilRun}
-          nextBestAction={nextBestAction}
           readiness={readiness}
-          onPrimaryAction={handleNextBestAction}
           onOpenRepository={project.repository ? () => onLaunch({
             id: `${project.id}-repository`,
             label: project.repository?.label ?? 'Open repository',
@@ -899,21 +897,6 @@ function ProjectCockpit({ project, onBack, onSwitchProject, onLaunch, consoleLin
         </section>
       </div>
 
-      <aside className="right-console glass-panel">
-        <h2><Terminal size={18} /> Context Panel</h2>
-        <NextBestActionCard nextBestAction={nextBestAction} onAction={handleNextBestAction} compact />
-        <h3>Mission Console</h3>
-        <div className="console-feed compact-feed">
-          {consoleLines.slice(0, 5).map((line, index) => <code key={`${line}-${index}`}>{line}</code>)}
-        </div>
-        <h3>Project Next Actions</h3>
-        {readiness.actions.length ? (
-          <ol>{readiness.actions.slice(0, 5).map((action) => <li key={action.id}>{action.label}</li>)}</ol>
-        ) : (
-          <p className="empty-state">No readiness actions are open.</p>
-        )}
-      </aside>
-
       {drawer && (
         <ActionDrawer
           drawer={drawer}
@@ -950,6 +933,7 @@ function tabLabel(tab: CockpitTab) {
 }
 
 function getConnectorHealth(project: AgentProject) {
+  if (project.connectors.length === 0) return 'None';
   const attention = project.connectors.filter((connector) => connector.status === 'attention').length;
   const setup = project.connectors.filter((connector) => connector.status === 'needs_setup' || connector.status === 'unknown').length;
   const connected = project.connectors.filter((connector) => connector.status === 'connected').length;
@@ -1022,16 +1006,12 @@ function getCockpitTabBadges(
 function ProjectCommandHeader({
   project,
   councilRun,
-  nextBestAction,
   readiness,
-  onPrimaryAction,
   onOpenRepository
 }: {
   project: AgentProject;
   councilRun: CouncilRun | null;
-  nextBestAction: NextBestActionModel;
   readiness: ReadinessSnapshot;
-  onPrimaryAction: () => void;
   onOpenRepository?: () => void;
 }) {
   return (
@@ -1060,40 +1040,28 @@ function ProjectCommandHeader({
       </div>
       <div className="next-action-strip">
         <span><strong>Top risk:</strong> {readiness.topRisk}</span>
-        <button className="primary-action" onClick={onPrimaryAction}><Zap size={16} /> {nextBestAction.label}</button>
+        <span><strong>Evidence:</strong> {readiness.actions[0]?.evidenceKeys.join(', ') || 'All readiness collectors report ready.'}</span>
       </div>
     </section>
   );
 }
 
 function CockpitTabs({ activeTab, onChange, badges }: { activeTab: CockpitTab; onChange: (tab: CockpitTab) => void; badges: CockpitTabBadgeMap }) {
-  const tabs: { id: CockpitTab; icon: ReactNode }[] = [
-    { id: 'overview', icon: <LayoutDashboard size={15} /> },
-    { id: 'agents', icon: <Bot size={15} /> },
-    { id: 'connectors', icon: <ShieldCheck size={15} /> },
-    { id: 'daily_report', icon: <FileText size={15} /> },
-    { id: 'council', icon: <UserCheckIcon /> },
-    { id: 'launch_actions', icon: <Play size={15} /> },
-    { id: 'activity', icon: <Activity size={15} /> },
-    { id: 'settings', icon: <Settings size={15} /> }
+  const tabs: { id: CockpitTab; label: string; icon: ReactNode; badge?: number }[] = [
+    { id: 'overview', label: tabLabel('overview'), icon: <LayoutDashboard size={15} /> },
+    { id: 'agents', label: tabLabel('agents'), icon: <Bot size={15} />, badge: badges.agents },
+    { id: 'connectors', label: tabLabel('connectors'), icon: <ShieldCheck size={15} />, badge: badges.connectors },
+    { id: 'daily_report', label: tabLabel('daily_report'), icon: <FileText size={15} />, badge: badges.daily_report },
+    { id: 'council', label: tabLabel('council'), icon: <UserCheckIcon />, badge: badges.council },
+    { id: 'launch_actions', label: tabLabel('launch_actions'), icon: <Play size={15} />, badge: badges.launch_actions },
+    { id: 'activity', label: tabLabel('activity'), icon: <Activity size={15} />, badge: badges.activity },
+    { id: 'settings', label: tabLabel('settings'), icon: <Settings size={15} />, badge: badges.settings }
   ];
 
   return (
-    <nav className="cockpit-tabs glass-panel" aria-label="Project cockpit workflows">
-      {tabs.map((tab) => (
-        <button
-          key={tab.id}
-          role="tab"
-          aria-selected={activeTab === tab.id}
-          className={activeTab === tab.id ? 'active' : ''}
-          onClick={() => onChange(tab.id)}
-        >
-          {tab.icon}
-          <span>{tabLabel(tab.id)}</span>
-          {Boolean(badges[tab.id]) && <i className="tab-badge" aria-label={`${badges[tab.id]} attention item${badges[tab.id] === 1 ? '' : 's'}`}>{badges[tab.id]}</i>}
-        </button>
-      ))}
-    </nav>
+    <div className="cockpit-tabs glass-panel">
+      <Tabs items={tabs} activeId={activeTab} onChange={onChange} label="Project cockpit workflows" />
+    </div>
   );
 }
 
@@ -1157,16 +1125,8 @@ function ProductReadinessPanel({ project }: { project: AgentProject }) {
 }
 
 function NextBestActionCard({ nextBestAction, onAction, compact = false }: { nextBestAction: NextBestActionModel; onAction: () => void; compact?: boolean }) {
-  return (
-    <section className={`next-best-action glass-panel ${compact ? 'next-best-compact' : ''}`}>
-      <div>
-        <div className="eyebrow"><Zap size={15} /> Next Best Action</div>
-        <h2>{nextBestAction.label}</h2>
-        <p>{nextBestAction.reason}</p>
-      </div>
-      <button className="primary-action" onClick={onAction}>{nextBestAction.label}</button>
-    </section>
-  );
+  void compact;
+  return <ActionCard label={nextBestAction.label} reason={nextBestAction.reason} onAction={onAction} />;
 }
 
 function TopAttentionPanel({ project, councilRun, onOpenTab }: { project: AgentProject; councilRun: CouncilRun | null; onOpenTab: (tab: CockpitTab) => void }) {
@@ -1187,14 +1147,16 @@ function TopAttentionPanel({ project, councilRun, onOpenTab }: { project: AgentP
       {items.length ? (
         <div className="attention-list">
           {items.map((item) => (
-            <button key={`${item.tab}-${item.title}`} onClick={() => onOpenTab(item.tab)}>
-              <strong>{item.title}</strong>
-              <span>{item.detail}</span>
-            </button>
+            <ListRow
+              key={`${item.tab}-${item.title}`}
+              title={item.title}
+              detail={item.detail}
+              action={<button onClick={() => onOpenTab(item.tab)}>Review</button>}
+            />
           ))}
         </div>
       ) : (
-        <p className="empty-state">No urgent attention items. Run a final Council review or generate the latest daily report.</p>
+        <EmptyState title="No urgent attention items" detail="Run a final Council review or generate the latest daily report." />
       )}
     </section>
   );
@@ -1254,7 +1216,7 @@ function AgentsTab({
           ))}
         </div>
       ) : (
-        <p className="empty-state empty-panel">No agents configured yet. Add one focused operator so this project has a clear owner for execution.</p>
+        <EmptyState title="No agents configured" detail="Add one focused operator so this project has a clear owner for execution." />
       )}
     </section>
   );
@@ -1289,7 +1251,7 @@ function LaunchActionsTab({ project, onLaunch, onConfigure }: { project: AgentPr
           </article>
         ))}
         {project.launchActions.length + agentActions.length === 0 && (
-          <p className="empty-state empty-panel">No launch actions configured. Add safe URLs or local paths so Ricky can move from status review to execution without hunting.</p>
+          <EmptyState title="No launch actions configured" detail="Add safe URLs or local paths so execution does not depend on searching for a target." />
         )}
       </div>
     </section>
@@ -1338,7 +1300,7 @@ function ActivityTab({
             ))}
           </div>
         ) : (
-          <p className="empty-state">Project activity will appear here after reports, Council reviews, connector checks, and launch actions.</p>
+          <EmptyState title="No project activity" detail="Reports, Council reviews, connector checks, and launch actions will appear here." />
         )}
       </div>
     </section>
@@ -1521,7 +1483,7 @@ function ReportList({ title, items }: { title: string; items: string[] }) {
       {items.length ? (
         <ul>{items.map((item) => <li key={item}>{item}</li>)}</ul>
       ) : (
-        <p className="empty-state">No items for this section.</p>
+        <EmptyState title="No items for this section" />
       )}
     </article>
   );
@@ -1763,7 +1725,7 @@ function ConnectorHub({
           ))}
         </div>
       ) : (
-        <p className="empty-state empty-panel">No connectors configured. Add non-secret references for GitHub, Netlify, Supabase, Stripe, or custom systems.</p>
+        <EmptyState title="No connectors configured" detail="Add non-secret references for GitHub, Netlify, Supabase, Stripe, or custom systems." />
       )}
       <p className="security-note">Connector metadata is reference-only. Never store tokens, API keys, passwords, service-role keys, or private credentials here.</p>
     </section>
@@ -1943,12 +1905,7 @@ async function copyText(text: string) {
 }
 
 function Metric({ label, value }: { label: string; value: number }) {
-  return (
-    <span className="metric-chip">
-      <strong>{value}</strong>
-      <small>{label}</small>
-    </span>
-  );
+  return <StatTile label={label} value={value} />;
 }
 
 function Telemetry({ label, value, inverse = false }: { label: string; value: number; inverse?: boolean }) {

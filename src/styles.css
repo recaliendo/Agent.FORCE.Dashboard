@@ -1166,7 +1166,6 @@ pre {
   gap: var(--space-2);
 }
 
-.attention-list button,
 .activity-history article,
 .recent-report-list article,
 .council-run-list article {
@@ -1178,6 +1177,10 @@ pre {
   padding: var(--space-3) 0;
   background: transparent;
   text-align: left;
+}
+
+.attention-list .ui-list-row button {
+  flex: 0 0 auto;
 }
 
 .cockpit-hud-matrix {
@@ -1193,7 +1196,9 @@ pre {
 
 .map-readout {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
+  gap: var(--space-2);
 }
 
 .connector-stream {

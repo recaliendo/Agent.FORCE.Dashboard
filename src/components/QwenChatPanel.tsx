@@ -4,6 +4,7 @@ import type { AgentProject, QwenChatMessage, QwenConfigResult } from '../types';
 
 const SYSTEM_PROMPT =
   'You are Agent FORCE Qwen Chat, a local assistant embedded in a multi-project agent dashboard. Be concise, practical, and safety-aware. Do not invent project facts, credentials, secrets, or completion claims.';
+const MAX_CONTEXT_TURNS = 6;
 
 type QwenStreamState =
   | 'connecting'
@@ -20,6 +21,7 @@ interface TranscriptMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
+  turnId?: string;
   streamState?: QwenStreamState;
   elapsedMs?: number;
   tokenCount?: number;
@@ -106,14 +108,24 @@ export function QwenChatPanel({ project, onActivity }: QwenChatPanelProps) {
   const startedAtRef = useRef(0);
   const tokenCountRef = useRef(0);
   const progressTimerRef = useRef<number | null>(null);
-  const promptPhaseTimerRef = useRef<number | null>(null);
 
-  const chatMessages = useMemo<QwenChatMessage[]>(() => [
-    { role: 'system', content: `${SYSTEM_PROMPT}\n\nCurrent project context:\n${buildProjectContext(project)}` },
-    ...messages
-      .filter((message) => message.role === 'user' || message.role === 'assistant')
-      .map((message) => ({ role: message.role, content: message.content }))
-  ], [messages, project]);
+  const chatMessages = useMemo<QwenChatMessage[]>(() => {
+    const completedTurnIds = messages
+      .filter((message) => message.role === 'assistant' && message.streamState === 'complete' && message.turnId)
+      .map((message) => message.turnId as string)
+      .slice(-MAX_CONTEXT_TURNS);
+    const retainedTurns = new Set(completedTurnIds);
+
+    return [
+      { role: 'system', content: `${SYSTEM_PROMPT}\n\nCurrent project context:\n${buildProjectContext(project)}` },
+      ...messages
+        .filter((message) =>
+          (message.role === 'user' || message.role === 'assistant') &&
+          Boolean(message.turnId && retainedTurns.has(message.turnId))
+        )
+        .map((message) => ({ role: message.role as 'user' | 'assistant', content: message.content }))
+    ];
+  }, [messages, project]);
 
   useEffect(() => {
     let mounted = true;
@@ -121,7 +133,7 @@ export function QwenChatPanel({ project, onActivity }: QwenChatPanelProps) {
       if (!mounted) return;
       setConfig(result);
       setStatus(result.runtime?.autostart
-        ? `Managed runtime ${result.runtime.running ? 'running' : 'will start on Health or Send'}.`
+        ? `Managed runtime ${result.runtime.running ? 'running' : 'is starting in the background'}.`
         : `${result.modelName} / ${result.baseUrl}`);
     }).catch((error) => {
       if (!mounted) return;
@@ -166,9 +178,7 @@ export function QwenChatPanel({ project, onActivity }: QwenChatPanelProps) {
 
   function stopProgressTimers() {
     if (progressTimerRef.current !== null) window.clearInterval(progressTimerRef.current);
-    if (promptPhaseTimerRef.current !== null) window.clearTimeout(promptPhaseTimerRef.current);
     progressTimerRef.current = null;
-    promptPhaseTimerRef.current = null;
   }
 
   function startProgressTimer(assistantId: string) {
@@ -221,10 +231,12 @@ export function QwenChatPanel({ project, onActivity }: QwenChatPanelProps) {
       return;
     }
 
-    const userMessage: TranscriptMessage = { id: makeId('user'), role: 'user', content };
+    const requestId = makeId('qwen');
+    const userMessage: TranscriptMessage = { id: makeId('user'), turnId: requestId, role: 'user', content };
     const assistantId = makeId('assistant');
     const assistantMessage: TranscriptMessage = {
       id: assistantId,
+      turnId: requestId,
       role: 'assistant',
       content: '',
       streamState: 'connecting',
@@ -242,21 +254,19 @@ export function QwenChatPanel({ project, onActivity }: QwenChatPanelProps) {
     setMessages((current) => [...current, userMessage, assistantMessage]);
     activeAssistantIdRef.current = assistantId;
     startProgressTimer(assistantId);
-    promptPhaseTimerRef.current = window.setTimeout(() => {
-      setMessages((current) => current.map((message) =>
-        message.id === assistantId && message.streamState === 'connecting'
-          ? { ...message, streamState: 'prompt-evaluating' }
-          : message
-      ));
-      if (activeAssistantIdRef.current === assistantId) setStatus(STREAM_STATE_COPY['prompt-evaluating']);
-    }, 250);
 
-    const requestId = makeId('qwen');
     cleanupRef.current = window.agentForce.qwenStreamChat(requestId, outgoingMessages, (event) => {
+      if (event.type === 'phase' && event.phase === 'prompt-evaluating') {
+        setMessages((current) => current.map((message) =>
+          message.id === assistantId && message.streamState === 'connecting'
+            ? { ...message, streamState: 'prompt-evaluating' }
+            : message
+        ));
+        if (activeAssistantIdRef.current === assistantId) setStatus(STREAM_STATE_COPY['prompt-evaluating']);
+      }
+
       if (event.type === 'token') {
         tokenCountRef.current += 1;
-        if (promptPhaseTimerRef.current !== null) window.clearTimeout(promptPhaseTimerRef.current);
-        promptPhaseTimerRef.current = null;
         setStatus(STREAM_STATE_COPY.generating);
         setMessages((current) => current.map((message) =>
           message.id === assistantId

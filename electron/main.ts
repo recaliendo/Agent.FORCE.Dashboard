@@ -48,6 +48,7 @@ function getQwenConfig() {
   const timeoutSeconds = Number(process.env.LLM_TIMEOUT_SECONDS || '5');
   const inferenceConnectSeconds = Number(process.env.LLM_INFERENCE_CONNECT_TIMEOUT_SECONDS || '10');
   const inferenceInactivitySeconds = Number(process.env.LLM_INFERENCE_INACTIVITY_TIMEOUT_SECONDS || '30');
+  const maxOutputTokens = Number(process.env.LLM_MAX_OUTPUT_TOKENS || '512');
 
   return {
     baseUrl,
@@ -55,7 +56,8 @@ function getQwenConfig() {
     modelName,
     timeoutMs: Number.isFinite(timeoutSeconds) ? Math.max(1, timeoutSeconds) * 1000 : 5000,
     inferenceConnectTimeoutMs: Number.isFinite(inferenceConnectSeconds) ? Math.max(1, inferenceConnectSeconds) * 1000 : 10000,
-    inferenceInactivityTimeoutMs: Number.isFinite(inferenceInactivitySeconds) ? Math.max(5, inferenceInactivitySeconds) * 1000 : 30000
+    inferenceInactivityTimeoutMs: Number.isFinite(inferenceInactivitySeconds) ? Math.max(5, inferenceInactivitySeconds) * 1000 : 30000,
+    maxOutputTokens: Number.isFinite(maxOutputTokens) ? Math.min(4096, Math.max(64, Math.floor(maxOutputTokens))) : 512
   };
 }
 
@@ -132,15 +134,24 @@ async function qwenFetch(
   }
 }
 
-async function qwenChatCompletion(messages: ChatMessage[], stream = false, controller?: AbortController) {
+async function qwenChatCompletion(
+  messages: ChatMessage[],
+  stream = false,
+  controller?: AbortController,
+  onRuntimeReady?: () => void
+) {
   const config = getQwenConfig();
+  if (controller?.signal.aborted) throw new Error('CANCELLED: The inference request was cancelled.');
+  await ensureManagedLocalLlm(config);
+  if (controller?.signal.aborted) throw new Error('CANCELLED: The inference request was cancelled.');
+  onRuntimeReady?.();
   const response = await qwenFetch('chat/completions', {
     method: 'POST',
     body: JSON.stringify({
       model: config.modelName,
       messages,
       temperature: 0.2,
-      max_tokens: 1024,
+      max_tokens: config.maxOutputTokens,
       chat_template_kwargs: { enable_thinking: false },
       stream
     })
@@ -293,7 +304,11 @@ ipcMain.handle('agent-force:qwen-stream-chat', async (event, requestId: string, 
   };
 
   try {
-    const response = await qwenChatCompletion(messages, true, controller);
+    const response = await qwenChatCompletion(messages, true, controller, () => {
+      if (!event.sender.isDestroyed()) {
+        event.sender.send(`agent-force:qwen-stream:${requestId}`, { type: 'phase', phase: 'prompt-evaluating' });
+      }
+    });
     const reader = (response.body as any)?.getReader?.();
     if (!reader) {
       throw new Error('LLM endpoint did not provide a readable stream.');

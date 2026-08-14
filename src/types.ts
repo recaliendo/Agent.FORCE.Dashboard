@@ -153,6 +153,7 @@ export interface QwenResult {
 }
 
 export type QwenStreamEvent =
+  | { type: 'phase'; phase: 'prompt-evaluating' }
   | { type: 'token'; token: string }
   | { type: 'done' }
   | { type: 'error'; error: string };

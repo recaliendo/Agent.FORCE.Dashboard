@@ -2,174 +2,23 @@ import type { AgentProject } from '../types';
 
 export const seedProjects: AgentProject[] = [
   {
-    id: 'richard-job-search',
-    name: 'Richard Job Search Agent',
-    callsign: 'CAREER ORBIT OPS',
-    category: 'Career Automation',
-    status: 'Building',
-    priority: 'Critical',
-    objective:
-      'Coordinate job-search intelligence, portfolio-based matching, application preparation, and outreach workflows for Richard.',
-    missionBrief:
-      'This is one project agent inside the broader Agent FORCE launch station. It should never define the app architecture by itself; it is a sample cockpit for career-focused agents and future job-application workflows.',
-    customerNeed: 'Richard needs a credible, source-of-truth-driven job search operating system that finds strong-fit senior roles without fabricating application content.',
-    successCriteria: [
-      'Every role is scored against verified portfolio facts and hard filters.',
-      'Manual review is queued when compensation, location, legal, or unsupported answers are unclear.',
-      'Application materials stay aligned to Richard’s portfolio and resume only.'
-    ],
-    currentBlockers: [
-      'Application queue schema is not yet connected to this dashboard.',
-      'Human-review gates need to be visible before any external submission flow.'
-    ],
-    repoUrl: 'https://github.com/caliendohomes-rgb/Agent.FORCE.Dashboard',
-    localPath: '',
-    repoReferences: [
-      {
-        id: 'agent-force-dashboard-repo',
-        label: 'Agent FORCE Dashboard Repository',
-        url: 'https://github.com/caliendohomes-rgb/Agent.FORCE.Dashboard',
-        description: 'Canonical desktop hub repository.'
-      },
-      {
-        id: 'job-search-agent-repo',
-        label: 'Job Search Agent Repository',
-        url: 'https://github.com/caliendohomes-rgb/Job.SEARCH.AGENT',
-        description: 'Project-specific job-search agent source repository.'
-      }
-    ],
-    localPaths: [
-      {
-        id: 'job-search-workspace',
-        label: 'Job Search Workspace',
-        path: 'C:\\Users\\Richa\\OneDrive\\Documents\\Job Search Agent',
-        description: 'Local workspace for job-search agent files and reports.'
-      }
-    ],
-    safetyNotes: [
-      'APPLY_MODE must remain false unless Ricky explicitly enables external submissions.',
-      'Use portfolio/resume source-of-truth only; never fabricate experience or credentials.'
-    ],
-    accent: 'cyan',
-    telemetry: {
-      readiness: 68,
-      automation: 62,
-      risk: 34,
-      coverage: 72
-    },
-    tags: ['Job Search', 'Portfolio', 'Resume', 'Remote Roles', 'Codex', 'Claude Code'],
-    connectors: [
-      {
-        id: 'job-search-github',
-        type: 'github',
-        label: 'Job Search Agent Repo',
-        url: 'https://github.com/caliendohomes-rgb/Job.SEARCH.AGENT',
-        status: 'connected',
-        environment: 'production',
-        description: 'Source repository for the local job-search agent and QA workflow.'
-      },
-      {
-        id: 'job-search-portfolio',
-        type: 'custom',
-        label: 'Portfolio Source of Truth',
-        url: 'https://richardecaliendo.com/',
-        status: 'connected',
-        environment: 'production',
-        description: 'Public portfolio and resume source used for verified candidate facts.'
-      },
-      {
-        id: 'job-search-deploy',
-        type: 'netlify',
-        label: 'Deployment Target',
-        status: 'needs_setup',
-        environment: 'staging',
-        description: 'Optional future deployment connector for hosted reports or dashboards.'
-      }
-    ],
-    launchActions: [
-      {
-        id: 'portfolio',
-        label: 'Open Portfolio',
-        type: 'url',
-        target: 'https://richardecaliendo.com/',
-        description: 'Launch the portfolio used as the source of truth for career positioning.'
-      },
-      {
-        id: 'repo',
-        label: 'Open Dashboard Repo',
-        type: 'url',
-        target: 'https://github.com/caliendohomes-rgb/Agent.FORCE.Dashboard',
-        description: 'Open the Agent FORCE Dashboard repository.'
-      }
-    ],
-    nextActions: [
-      'Add project-specific application queue schema.',
-      'Add resume and portfolio source-of-truth validation panel.',
-      'Add guardrails for compensation, remote status, location radius, and company exclusions.',
-      'Add human-review checkpoint before any external job application submission.'
-    ],
-    agents: [
-      {
-        id: 'career-intel-scout',
-        name: 'Career Intel Scout',
-        callsign: 'SCOUT-180',
-        origin: 'Hybrid',
-        role: 'Role discovery, filtering, and fit scoring',
-        status: 'Planning',
-        description:
-          'Identifies opportunities that appear aligned with portfolio, resume, compensation, location, and experience constraints.',
-        tags: ['Discovery', 'Fit Score', 'Remote', '$180K+'],
-        launchActions: [],
-        safetyNotes: ['Queue manual review for unclear compensation, work authorization, legal terms, or possible Kaseya affiliation.']
-      },
-      {
-        id: 'application-builder',
-        name: 'Application Builder',
-        callsign: 'APPLY-1',
-        origin: 'Claude Code',
-        role: 'Application packet preparation',
-        status: 'Planning',
-        description:
-          'Prepares tailored summaries, role notes, outreach drafts, and application materials from approved source content.',
-        tags: ['Resume', 'Portfolio', 'Cover Notes'],
-        launchActions: [],
-        safetyNotes: ['Use verified source facts only.']
-      },
-      {
-        id: 'outreach-navigator',
-        name: 'Outreach Navigator',
-        callsign: 'LINK-OPS',
-        origin: 'Codex',
-        role: 'Networking and contact workflow support',
-        status: 'Planning',
-        description:
-          'Maintains outreach prompts, contact notes, and follow-up workflows connected to target companies and roles.',
-        tags: ['LinkedIn', 'Networking', 'Follow-up'],
-        launchActions: [],
-        safetyNotes: ['Do not send external outreach without Ricky review.']
-      }
-    ]
-  },
-  {
     id: 'portfolio-command-center',
     name: 'Portfolio Command Center',
     callsign: 'HOLO-PORTFOLIO',
     category: 'Personal Brand',
     status: 'Ready',
     priority: 'High',
-    objective:
-      'Operate portfolio website QA, content hierarchy, readability, resume alignment, and conversion optimization.',
-    missionBrief:
-      'Dedicated project cockpit for the portfolio website and resume experience, separate from the job-search application agents.',
-    customerNeed: 'Recruiters and hiring leaders need to understand Richard’s technical program, AI adoption, and SaaS execution value quickly.',
+    objective: 'Operate portfolio website QA, content hierarchy, readability, and conversion optimization.',
+    missionBrief: 'Dedicated project cockpit for the public portfolio experience.',
+    customerNeed: 'Visitors need to understand the portfolio value and supporting evidence quickly.',
     successCriteria: [
-      'Portfolio scan path is clear in under one minute.',
-      'Resume and website claims stay consistent.',
-      'SEO/readability issues are tracked before high-visibility outreach.'
+      'The portfolio scan path is clear in under one minute.',
+      'Public claims stay consistent with verified source material.',
+      'SEO and readability issues are tracked before high-visibility publishing.'
     ],
     currentBlockers: [
-      'Portfolio repository connector is not configured.',
-      'Resume QA checklist has not been added.'
+      'Repository connector is not configured.',
+      'Portfolio QA checklist has not been added.'
     ],
     repoUrl: 'https://richardecaliendo.com/',
     repoReferences: [
@@ -177,10 +26,10 @@ export const seedProjects: AgentProject[] = [
         id: 'portfolio-live-reference',
         label: 'Live Portfolio',
         url: 'https://richardecaliendo.com/',
-        description: 'Public portfolio and resume source.'
+        description: 'Public portfolio source.'
       }
     ],
-    safetyNotes: ['Public portfolio content must stay consistent with verified resume/source material.'],
+    safetyNotes: ['Public content must stay consistent with verified source material.'],
     accent: 'violet',
     telemetry: {
       readiness: 82,
@@ -188,7 +37,7 @@ export const seedProjects: AgentProject[] = [
       risk: 21,
       coverage: 76
     },
-    tags: ['Portfolio', 'Resume', 'UX', 'Readability', 'SEO'],
+    tags: ['Portfolio', 'UX', 'Readability', 'SEO'],
     connectors: [
       {
         id: 'portfolio-site',
@@ -197,7 +46,7 @@ export const seedProjects: AgentProject[] = [
         url: 'https://richardecaliendo.com/',
         status: 'connected',
         environment: 'production',
-        description: 'Live portfolio site reviewed by portfolio QA agents.'
+        description: 'Live portfolio reviewed by portfolio QA agents.'
       },
       {
         id: 'portfolio-repo',
@@ -205,7 +54,7 @@ export const seedProjects: AgentProject[] = [
         label: 'Portfolio Repository',
         status: 'needs_setup',
         environment: 'development',
-        description: 'Add the source repository URL when portfolio code is managed here.'
+        description: 'Add the source repository URL when configured.'
       }
     ],
     launchActions: [
@@ -214,13 +63,13 @@ export const seedProjects: AgentProject[] = [
         label: 'Open Portfolio Site',
         type: 'url',
         target: 'https://richardecaliendo.com/',
-        description: 'Open the live portfolio website.'
+        description: 'Open the public portfolio website.'
       }
     ],
     nextActions: [
-      'Add resume two-page QA checklist.',
-      'Add website readability and negative-space audit panel.',
-      'Track before/after UX issues by route.'
+      'Add a portfolio QA checklist.',
+      'Add a website readability and negative-space audit panel.',
+      'Track before-and-after UX issues by route.'
     ],
     agents: [
       {
@@ -230,8 +79,7 @@ export const seedProjects: AgentProject[] = [
         origin: 'Claude Code',
         role: 'Readability and layout QA',
         status: 'Ready',
-        description:
-          'Audits spacing, font scale, visual hierarchy, mobile responsiveness, and recruiter scanability.',
+        description: 'Audits spacing, font scale, visual hierarchy, mobile responsiveness, and scanability.',
         tags: ['UX', 'Typography', 'QA'],
         launchActions: []
       }
@@ -244,19 +92,17 @@ export const seedProjects: AgentProject[] = [
     category: 'SaaS Product Build',
     status: 'Building',
     priority: 'High',
-    objective:
-      'Coordinate StandardCraft website, resource library, auth, credits, Stripe, QA, and launch-readiness agents.',
-    missionBrief:
-      'A scalable project cockpit for education-resource SaaS development and launch operations.',
+    objective: 'Coordinate StandardCraft website, resource library, auth, credits, billing, QA, and launch readiness.',
+    missionBrief: 'A project cockpit for education-resource SaaS development and launch operations.',
     customerNeed: 'Educators need fast, trustworthy access to standards-aligned resources with reliable account, credit, and download workflows.',
     successCriteria: [
       'Critical purchase, credit, preview, and download paths are testable.',
-      'Supabase and Stripe connector posture is actionable without storing secrets.',
+      'Connector posture is actionable without storing secrets.',
       'Launch readiness exposes the top release blocker.'
     ],
     currentBlockers: [
-      'Supabase and Stripe connector setup needs review.',
-      'Regression tests for credit/download flows are not represented in the cockpit.'
+      'Data and billing connector setup needs review.',
+      'Regression tests for credit and download flows are not represented in the cockpit.'
     ],
     repoUrl: 'https://standardcraftny.com',
     repoReferences: [
@@ -267,7 +113,7 @@ export const seedProjects: AgentProject[] = [
         description: 'Production website reference.'
       }
     ],
-    safetyNotes: ['Never store Supabase service-role keys, Stripe secret keys, or Netlify tokens in connector metadata.'],
+    safetyNotes: ['Never store service-role keys, secret keys, or deploy tokens in connector metadata.'],
     accent: 'amber',
     telemetry: {
       readiness: 74,
@@ -275,7 +121,7 @@ export const seedProjects: AgentProject[] = [
       risk: 39,
       coverage: 71
     },
-    tags: ['StandardCraft', 'NYS Standards', 'Stripe', 'Supabase', 'Netlify'],
+    tags: ['StandardCraft', 'NYS Standards', 'Billing', 'Data', 'Deployment'],
     connectors: [
       {
         id: 'standardcraft-site',
@@ -287,20 +133,20 @@ export const seedProjects: AgentProject[] = [
         description: 'Production web presence and deploy surface.'
       },
       {
-        id: 'standardcraft-supabase',
+        id: 'standardcraft-data',
         type: 'supabase',
-        label: 'Supabase Project',
+        label: 'Data Project',
         status: 'attention',
         environment: 'production',
-        description: 'Database and auth connector reference. Store dashboard links only, never service-role keys.'
+        description: 'Database and auth connector reference. Store dashboard links only.'
       },
       {
-        id: 'standardcraft-stripe',
+        id: 'standardcraft-billing',
         type: 'stripe',
-        label: 'Stripe Billing',
+        label: 'Billing',
         status: 'needs_setup',
         environment: 'test',
-        description: 'Payment workflow connector reference. Store dashboard links only, never secret keys.'
+        description: 'Payment workflow connector reference. Store dashboard links only.'
       },
       {
         id: 'standardcraft-repo',
@@ -322,8 +168,8 @@ export const seedProjects: AgentProject[] = [
     ],
     nextActions: [
       'Add launch readiness scoring.',
-      'Add credit/download flow regression tests.',
-      'Add Stripe and Supabase environment checklist.'
+      'Add credit and download flow regression tests.',
+      'Add billing and data environment checklists.'
     ],
     agents: [
       {
@@ -333,8 +179,7 @@ export const seedProjects: AgentProject[] = [
         origin: 'Codex',
         role: 'Resource library structure and QA',
         status: 'Building',
-        description:
-          'Maintains resource counts, subject coverage, grade-band spread, and functional preview/download flows.',
+        description: 'Maintains resource counts, subject coverage, grade-band spread, and preview and download flows.',
         tags: ['Resources', 'QA', 'Credits'],
         launchActions: []
       }
@@ -342,16 +187,14 @@ export const seedProjects: AgentProject[] = [
   },
   {
     id: 'legal-ops-console',
-    name: 'Legal Ops Console',
+    name: 'DivorceAgent',
     callsign: 'EVIDENCE-DECK',
-    category: 'Document & Case Ops',
+    category: 'Document and Case Operations',
     status: 'Planning',
     priority: 'Medium',
-    objective:
-      'Organize legal document review, evidence timelines, issue trackers, and message-drafting workflows.',
-    missionBrief:
-      'Project cockpit for legal operations, document analysis, chronology building, and message positioning workflows.',
-    customerNeed: 'Legal workflows need organized document references, timeline clarity, and careful sensitive-data handling.',
+    objective: 'Organize document review, evidence timelines, issue trackers, and message-drafting workflows.',
+    missionBrief: 'Project cockpit for document operations, chronology building, and careful review workflows.',
+    customerNeed: 'Sensitive workflows need organized references, timeline clarity, and careful data handling.',
     successCriteria: [
       'Document vault path is configured without credentials.',
       'Timeline and exhibit agents have clear operating roles.',
@@ -359,20 +202,20 @@ export const seedProjects: AgentProject[] = [
     ],
     currentBlockers: [
       'Document vault connector is missing a safe reference.',
-      'Timeline and exhibit indexing workflows are still planning-stage.'
+      'Timeline and exhibit indexing workflows are still in planning.'
     ],
     accent: 'emerald',
     localPaths: [
       {
         id: 'legal-documents-reference',
-        label: 'Legal Documents Reference',
+        label: 'Documents Reference',
         path: 'C:\\Users\\Richa\\OneDrive\\Documents',
-        description: 'High-level local document area reference. Sensitive documents should not be copied into app storage.'
+        description: 'High-level local document reference. Sensitive documents must not be copied into app storage.'
       }
     ],
     safetyNotes: [
-      'Do not store confidential documents, credentials, or privileged legal content in dashboard localStorage.',
-      'Use connector references only; keep substantive legal analysis in approved files.'
+      'Do not store confidential documents, credentials, or privileged content in dashboard localStorage.',
+      'Use connector references only; keep substantive analysis in approved files.'
     ],
     telemetry: {
       readiness: 51,
@@ -380,7 +223,7 @@ export const seedProjects: AgentProject[] = [
       risk: 57,
       coverage: 44
     },
-    tags: ['Legal Ops', 'Documents', 'Timeline', 'Evidence'],
+    tags: ['Document Ops', 'Timeline', 'Evidence'],
     connectors: [
       {
         id: 'legal-doc-vault',
@@ -388,7 +231,7 @@ export const seedProjects: AgentProject[] = [
         label: 'Document Vault',
         status: 'needs_setup',
         environment: 'development',
-        description: 'Local or approved document location reference. Do not store credentials or sensitive tokens.'
+        description: 'Local or approved document reference. Do not store credentials or sensitive tokens.'
       }
     ],
     launchActions: [],
@@ -405,8 +248,7 @@ export const seedProjects: AgentProject[] = [
         origin: 'Manual',
         role: 'Chronology and issue mapping',
         status: 'Planning',
-        description:
-          'Structures events, evidence references, message history, and decision points into reviewable timelines.',
+        description: 'Structures events, evidence references, message history, and decision points into reviewable timelines.',
         tags: ['Timeline', 'Evidence', 'Review'],
         launchActions: []
       }

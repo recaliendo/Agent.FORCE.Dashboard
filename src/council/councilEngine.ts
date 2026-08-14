@@ -178,30 +178,16 @@ function buildQaFindings(context: CouncilRunContext) {
     ));
   }
 
-  if (/career|job/i.test(project.category)) {
-    findings.push(finding(
-      project,
-      'princess-leia',
-      project.currentBlockers?.length ? 'Medium' : 'Low',
-      'Career automation needs human-review guardrails visible',
-      'Application Safety',
-      'Job-search workflows should keep compensation, location, legal terms, and unsupported answers behind human review.',
-      'Show a project-specific review gate before any external application action is treated as ready.',
-      'Cockpit safety notes and next actions clearly show manual review before external submissions.',
-      'software_engineer'
-    ));
-  }
-
   if (/portfolio|brand/i.test(project.category)) {
     findings.push(finding(
       project,
       'princess-leia',
       'Medium',
-      'Portfolio cockpit should track resume and website alignment',
+      'Portfolio cockpit should track source and website alignment',
       'Portfolio QA',
-      'Portfolio readiness depends on consistency between website content, resume facts, and recruiter scan path.',
+      'Portfolio readiness depends on consistency between website content, source facts, and the visitor scan path.',
       'Add or maintain a portfolio QA checklist covering source alignment, readability, SEO, and conversion clarity.',
-      'Portfolio cockpit exposes resume alignment, readability, and conversion QA signals.',
+      'Portfolio cockpit exposes source alignment, readability, and conversion QA signals.',
       'software_engineer'
     ));
   }
@@ -383,15 +369,10 @@ function buildDirections(project: AgentProject, findings: CouncilFinding[]) {
 }
 
 function categoryDirection(project: AgentProject, lane: 'marketing' | 'product') {
-  if (/career|job/i.test(project.category)) {
-    return lane === 'marketing'
-      ? 'Career workflow copy must emphasize verified facts, senior-fit roles, and manual-review safety.'
-      : 'Prioritize role-fit accuracy, source-of-truth validation, and review gates before application volume.';
-  }
   if (/portfolio|brand/i.test(project.category)) {
     return lane === 'marketing'
-      ? 'Portfolio language should optimize recruiter scan speed, credibility, and SEO clarity.'
-      : 'Prioritize the visitor path from proof point to contact or resume review.';
+      ? 'Portfolio language should optimize visitor scan speed, credibility, and SEO clarity.'
+      : 'Prioritize the visitor path from proof point to contact review.';
   }
   if (/saas|product|build/i.test(project.category)) {
     return lane === 'marketing'

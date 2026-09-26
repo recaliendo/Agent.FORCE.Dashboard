@@ -84,3 +84,38 @@
   right-aligned user prompts. Added a layout contract test to prevent regression.
 - Added three Mermaid source/SVG/PNG architecture views for CTO review: AI infrastructure,
   Agent FORCE and agent infrastructure, and user and operations.
+
+## Command-center UX pass
+
+Audit evidence: before/after captures at 1440, 1024, 768 and 390 px; interaction checks
+recorded in the pull request.
+
+- **Start on Projects.** `/` now opens the project list instead of silently opening the
+  first project while the address said home.
+- **Orientation.** The top bar carries a breadcrumb (Projects / project) inside a project,
+  an actionable "N of M projects need attention" link that opens the filtered list, and a
+  "Commands gated" note that explains the shell-command opt-in. Side rail: "All projects"
+  and "Projects" replace "Launch Bay" and "Project Fleet".
+- **Projects page.** Page header, a fleet summary whose counts are also filters
+  (need attention, high risk, missing connectors, open Council findings, no daily report),
+  a toolbar with search, five primary filters and a "More filters" menu (all eleven
+  filters kept), and a project table: status as text, readiness and risk right-aligned,
+  connectors, Council result, next action. The table scrolls horizontally on narrow
+  screens rather than dropping columns.
+- **Records tab.** The OurFamilyWizard workspace moved from above the cockpit tabs (where
+  it preceded every tab) into a Records tab, enabled per project by `recordsWorkspace`.
+- **Overview by importance.** Next action, then attention items beside a Project health
+  panel (readiness, risk, automation and coverage with tones; every connector with its
+  status as text; one-click inventory links), then product clarity and guidance.
+- **Removed fabricated displays.** The per-project "Mission signal" chart plotted six
+  points invented from one snapshot, and the "Mission Map" was a decorative fake map;
+  both are gone (FOLLOW_UPS #13). The four HUD widgets that repeated the header are
+  replaced by Project health.
+- **Shared patterns.** `src/statusTone.ts` is the single status vocabulary (project,
+  connector, score, risk → tone + text label). One segmented-control style serves
+  in-page view switches (project filters, OFW record types and search mode, Council
+  views), deliberately unlike the bordered cockpit tabs that navigate between areas.
+- **Fixes.** Tab switches no longer fire a toast; in-page links bring the tab bar into
+  view and keep the active tab visible. The tab panel has `role="tabpanel"` labelled by
+  its tab. Cockpit tabs stay on one row and scroll instead of wrapping. A min-content grid
+  track let Council content push the page 215 px past a phone screen; fixed.

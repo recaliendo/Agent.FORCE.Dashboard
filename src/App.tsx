@@ -4,7 +4,6 @@ import {
   Bot,
   Brain,
   CheckCircle2,
-  ChevronsRight,
   Clipboard,
   Command,
   Copy,
@@ -14,8 +13,8 @@ import {
   FolderOpen,
   Gauge,
   Home,
-  Layers,
   LayoutDashboard,
+  FileSearch,
   ListChecks,
   MessageCircle,
   Orbit,
@@ -42,14 +41,13 @@ import {
   getAgentDeckGuidance,
   getCouncilGuidance,
   getConnectorGuidance,
-  getLaunchBayGuidance,
-  getMentorGreeting,
   getProjectGuidance,
   getReportGuidance
 } from './mentorEngine';
 import { generateDailyReport } from './reportEngine';
 import { evaluateReadiness, type ReadinessSnapshot } from './readinessEngine';
 import { projectHash, resolveProjectRoute } from './projectRoutes';
+import { CONNECTOR_STATUS_LABEL, connectorStatusTone, projectStatusTone, riskTone, scoreTone, type StatusTone } from './statusTone';
 import {
   getProjectReportStorageKey,
   safeReadActivity,
@@ -74,7 +72,7 @@ type ProjectFilter =
   | 'critical_priority'
   | 'local_agent'
   | 'repo_connected';
-type CockpitTab = 'overview' | 'agents' | 'connectors' | 'daily_report' | 'council' | 'launch_actions' | 'activity' | 'settings';
+type CockpitTab = 'overview' | 'records' | 'agents' | 'connectors' | 'daily_report' | 'council' | 'launch_actions' | 'activity' | 'settings';
 type CockpitTabBadgeMap = Partial<Record<CockpitTab, number>>;
 type DrawerState =
   | { kind: 'mentor'; title: string }
@@ -88,7 +86,7 @@ function App() {
   const appShellRef = useRef<HTMLElement | null>(null);
   const initialRoute = resolveProjectRoute(window.location.hash, seedProjects.map((project) => project.id));
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
-    initialRoute.kind === 'project' ? initialRoute.projectId : initialRoute.kind === 'launch' ? seedProjects[0]?.id ?? null : null
+    initialRoute.kind === 'project' ? initialRoute.projectId : null
   );
   const [notFoundProjectId, setNotFoundProjectId] = useState(initialRoute.kind === 'not_found' ? initialRoute.requestedId : '');
   const [query, setQuery] = useState('');
@@ -132,6 +130,11 @@ function App() {
     councilRevision;
     return Object.fromEntries(seedProjects.map((project) => [project.id, safeReadCouncilRuns(project.id)[0] ?? null]));
   }, [councilRevision]);
+
+  const attentionCount = useMemo(
+    () => seedProjects.filter((project) => projectMatchesFilter(project, 'attention', latestCouncilRuns[project.id])).length,
+    [latestCouncilRuns]
+  );
 
   const filteredProjects = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -251,24 +254,36 @@ function App() {
 
   return (
     <main className="app-shell" ref={appShellRef}>
-      <div className="stars" />
-      <div className="nebula nebula-one" />
-      <div className="nebula nebula-two" />
-      <div className="grid-horizon" />
-
       <header className="top-command-bar glass-panel">
-        <button className="brand-lockup" onClick={() => navigateProject(null)} aria-label="Return to Project Launch Bay">
-          <span className="brand-mark"><Orbit size={26} /></span>
-          <span>
+        <div className="top-context">
+          <button className="brand-lockup" onClick={() => navigateProject(null)} aria-label="Agent FORCE: all projects">
+            <span className="brand-mark"><Orbit size={22} /></span>
             <strong>Agent FORCE</strong>
-            <small>Multi-Project Agent Launch Station</small>
-          </span>
-        </button>
+          </button>
+          {(selectedProject || notFoundProjectId) && <nav className="breadcrumbs" aria-label="Breadcrumb">
+            <ol>
+              <li>
+                <a href="#/" onClick={(event) => { event.preventDefault(); navigateProject(null); }}>Projects</a>
+              </li>
+              {selectedProject && <li><span aria-current="page">{selectedProject.name}</span></li>}
+              {notFoundProjectId && <li><span aria-current="page">Not found</span></li>}
+            </ol>
+          </nav>}
+        </div>
 
         <div className="status-strip">
-          <span><Activity size={15} /> {seedProjects.length} Projects</span>
-          <span><Bot size={15} /> {agentCount} Agents</span>
-          <span><ShieldCheck size={15} /> Command Gate Safe</span>
+          <button
+            type="button"
+            className={`status-link ${attentionCount ? 'is-warning' : ''}`}
+            onClick={() => { setQuickFilter('attention'); navigateProject(null); }}
+            title="Show projects that need attention"
+          >
+            <CircleAlert size={15} aria-hidden="true" />
+            {attentionCount ? `${attentionCount} of ${seedProjects.length} projects need attention` : 'No projects need attention'}
+          </button>
+          <span title="Shell commands from launch actions only run when AGENT_FORCE_ALLOW_COMMANDS=true is set; otherwise they are copied for manual review.">
+            <ShieldCheck size={15} aria-hidden="true" /> Commands gated
+          </span>
         </div>
       </header>
 
@@ -439,6 +454,23 @@ interface ProjectLaunchBayProps {
   onRefreshSignals: () => void;
 }
 
+const PRIMARY_FILTERS: { id: ProjectFilter; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'attention', label: 'Needs attention' },
+  { id: 'ready', label: 'Ready' },
+  { id: 'building', label: 'Building' },
+  { id: 'high_risk', label: 'High risk' }
+];
+
+const MORE_FILTERS: { id: ProjectFilter; label: string }[] = [
+  { id: 'missing_connectors', label: 'Missing connectors' },
+  { id: 'council_findings', label: 'Open Council findings' },
+  { id: 'no_daily_report', label: 'No daily report' },
+  { id: 'critical_priority', label: 'Critical priority' },
+  { id: 'local_agent', label: 'Local agent available' },
+  { id: 'repo_connected', label: 'Repository connected' }
+];
+
 function ProjectLaunchBay({
   query,
   setQuery,
@@ -453,138 +485,159 @@ function ProjectLaunchBay({
   onClearSearch,
   onRefreshSignals
 }: ProjectLaunchBayProps) {
-  const filters: { id: ProjectFilter; label: string }[] = [
-    { id: 'all', label: 'All' },
-    { id: 'attention', label: 'Needs Attention' },
-    { id: 'ready', label: 'Ready' },
-    { id: 'building', label: 'Building' },
-    { id: 'missing_connectors', label: 'Missing Connectors' },
-    { id: 'council_findings', label: 'Council Findings' },
-    { id: 'no_daily_report', label: 'No Daily Report' },
-    { id: 'high_risk', label: 'High Risk' },
-    { id: 'critical_priority', label: 'Critical Priority' },
-    { id: 'local_agent', label: 'Local Agent Available' },
-    { id: 'repo_connected', label: 'Repo Connected' }
-  ];
+  const moreActive = MORE_FILTERS.some((filter) => filter.id === quickFilter);
+  const filtered = query.trim() !== '' || quickFilter !== 'all';
 
   return (
-    <section className="launch-bay page-stage">
-      <div className="hero-panel glass-panel holo-border">
-        <div className="launch-hero-layout">
-          <div>
-            <div className="eyebrow"><Sparkles size={16} /> Project Launch Bay</div>
-            <h1>Choose your agent project.</h1>
-            <p>{getMentorGreeting()}</p>
-            <p>
-              Operate every Codex, Claude Code, hybrid, and local agent from one desktop command hub. Each project gets its own cockpit, agents, launch actions, readiness telemetry, and mission plan.
-            </p>
-            <div className="search-console">
-              <Search size={18} />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search projects, agents, tags, missions..."
-                aria-label="Search agent projects"
-              />
-              {query && (
-                <button type="button" onClick={onClearSearch} aria-label="Clear search">
-                  <X size={16} />
-                </button>
-              )}
-            </div>
-            <div className="launch-filter-bar" aria-label="Project filters">
-              <span className="filter-label">Focus</span>
-              {filters.map((filter) => (
-                <button
-                  key={filter.id}
-                  type="button"
-                  aria-pressed={quickFilter === filter.id}
-                  className={quickFilter === filter.id ? 'active' : ''}
-                  onClick={() => setQuickFilter(filter.id)}
-                >
-                  {filter.label}
-                </button>
-              ))}
-              {quickFilter !== 'all' && <button type="button" className="filter-reset" onClick={() => setQuickFilter('all')}>Clear filter</button>}
-              <button type="button" onClick={onRefreshSignals}><RefreshCw size={15} /> Refresh Fleet Signals</button>
-            </div>
-            {statusMessage && <div className="copy-status">{statusMessage}</div>}
-          </div>
-          <MentorGuide guidance={getLaunchBayGuidance(projectCount, agentCount)} compact />
+    <section className="launch-bay page-stage" aria-labelledby="projects-title">
+      <header className="page-header">
+        <div>
+          <h1 id="projects-title">Projects</h1>
+          <p>{projectCount} projects · {agentCount} agent definitions. Open a project to see its health, agents and next action.</p>
         </div>
-      </div>
+        <button type="button" onClick={onRefreshSignals}><RefreshCw size={15} aria-hidden="true" /> Refresh status</button>
+      </header>
 
-      <FleetSituationWall projects={projects} latestCouncilRuns={latestCouncilRuns} />
+      <FleetSummary projects={seedProjects} latestCouncilRuns={latestCouncilRuns} activeFilter={quickFilter} onFilter={setQuickFilter} />
 
-      <div className="project-grid" aria-label="Agent projects">
-        {projects.length ? projects.map((project) => {
-          const readiness = getProjectReadiness(project, latestCouncilRuns[project.id]);
-          return (
-          <button key={project.id} className={`project-card project-${project.accent}`} onClick={() => onSelect(project.id)}>
-            <div className="project-card-inner">
-              <div className="project-card-topline">
-                <span className="callsign">{project.callsign}</span>
-                <Badge tone={project.status === 'Ready' ? 'success' : project.status === 'Unknown' ? 'warning' : 'info'}>{project.status}</Badge>
-              </div>
-              <h2>{project.name}</h2>
-              <p>{project.objective}</p>
-              <MiniTrendChart
-                label="Mission signal"
-                values={projectTrend(readiness)}
-              />
-              <div className="telemetry-row">
-                <Metric label="Ready" value={readiness.score} />
-                <Metric label="Auto" value={readiness.automation} />
-                <Metric label="Cover" value={readiness.coverage} />
-              </div>
-              <CouncilSignal run={latestCouncilRuns[project.id]} />
-              <div className="project-card-intel">
-                <span><strong>Risk</strong>{readiness.risk}%</span>
-                <span><strong>Priority</strong>{project.priority}</span>
-                <span><strong>Report</strong>{readSavedReports(project.id).length ? 'Saved' : 'No daily report'}</span>
-              </div>
-              <div className="next-action-preview">
-                <strong>Next:</strong> {getNextBestAction(readiness).label}
-              </div>
-              <div className="tag-cloud">
-                {project.tags.slice(0, 5).map((tag) => <span key={tag}>{tag}</span>)}
-              </div>
-              <div className="project-card-footer">
-                <span>{project.agents.length} agent{project.agents.length === 1 ? '' : 's'} / {project.connectors.length} connector{project.connectors.length === 1 ? '' : 's'}</span>
-                <span className="enter-link">Enter cockpit <ChevronsRight size={16} /></span>
-              </div>
-            </div>
-          </button>
-          );
-        }) : (
-          <div className="no-search-results glass-panel">
-            <strong>No matching projects found.</strong>
-            <span>Try searching by project name, callsign, connector, status, priority, tag, or agent role.</span>
-          </div>
-        )}
+      <div className="fleet-toolbar">
+        <div className="search-field">
+          <Search size={16} aria-hidden="true" />
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search projects, agents, connectors, tags…"
+            aria-label="Search projects"
+          />
+        </div>
+        <div className="segmented" role="group" aria-label="Filter projects">
+          {PRIMARY_FILTERS.map((filter) => (
+            <button
+              key={filter.id}
+              type="button"
+              aria-pressed={quickFilter === filter.id}
+              className={quickFilter === filter.id ? 'active' : ''}
+              onClick={() => setQuickFilter(filter.id)}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
+        <label className={`more-filters ${moreActive ? 'active' : ''}`}>
+          <span className="visually-hidden">More filters</span>
+          <select value={moreActive ? quickFilter : ''} onChange={(event) => setQuickFilter((event.target.value || 'all') as ProjectFilter)}>
+            <option value="">More filters…</option>
+            {MORE_FILTERS.map((filter) => <option key={filter.id} value={filter.id}>{filter.label}</option>)}
+          </select>
+        </label>
+        {filtered && <button type="button" className="ghost" onClick={onClearSearch}><X size={15} aria-hidden="true" /> Clear</button>}
       </div>
+      <p className="visually-hidden" role="status" aria-live="polite">{statusMessage || `${projects.length} of ${projectCount} projects shown.`}</p>
+      {statusMessage && <p className="toolbar-status" aria-hidden="true">{statusMessage}</p>}
+
+      {projects.length ? (
+        <div className="table-scroll">
+          <table className="fleet-table">
+            <caption className="visually-hidden">Projects, {projects.length} of {projectCount} shown</caption>
+            <thead>
+              <tr>
+                <th scope="col">Project</th>
+                <th scope="col">Status</th>
+                <th scope="col" className="num">Readiness</th>
+                <th scope="col" className="num">Risk</th>
+                <th scope="col">Connectors</th>
+                <th scope="col">Council</th>
+                <th scope="col">Next action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {projects.map((project) => {
+                const run = latestCouncilRuns[project.id];
+                const readiness = getProjectReadiness(project, run);
+                const council = summarizeCouncilRun(run);
+                const connected = project.connectors.filter((connector) => connector.status === 'connected').length;
+                const needSetup = project.connectors.length - connected;
+                return (
+                  <tr key={project.id} onClick={() => onSelect(project.id)}>
+                    <th scope="row">
+                      <button type="button" className="row-link" onClick={(event) => { event.stopPropagation(); onSelect(project.id); }}>
+                        {project.name}
+                      </button>
+                      <span className="row-meta">{project.callsign} · {project.priority} priority</span>
+                      <span className="row-objective" title={project.objective}>{project.objective}</span>
+                    </th>
+                    <td><Badge tone={projectStatusTone(project.status)}>{project.status}</Badge></td>
+                    <td className={`num tone-text-${scoreTone(readiness.score)}`}>{readiness.score}%</td>
+                    <td className={`num tone-text-${riskTone(readiness.risk)}`}>{readiness.risk}%</td>
+                    <td>
+                      <span>{project.connectors.length ? `${connected}/${project.connectors.length} connected` : 'No connectors'}</span>
+                      {needSetup > 0 && <span className="row-meta tone-text-warning">{needSetup} need setup</span>}
+                    </td>
+                    <td>
+                      <span>{run ? council.decision : 'Not run'}</span>
+                      {run && (council.critical > 0 || council.high > 0) && (
+                        <span className="row-meta tone-text-danger">{council.critical} critical · {council.high} high</span>
+                      )}
+                    </td>
+                    <td className="row-next">{getNextBestAction(readiness).label}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <EmptyState
+          title="No projects match"
+          detail={<>Nothing matches the current search or filter. <button type="button" className="inline-link" onClick={onClearSearch}>Clear search and filters</button></>}
+        />
+      )}
     </section>
   );
 }
 
-function CouncilSignal({ run }: { run?: CouncilRun | null }) {
-  const summary = summarizeCouncilRun(run);
-
+/**
+ * Fleet-level answers to "what needs me?". Each count is also a filter, so a
+ * number is always one click from the projects behind it.
+ */
+function FleetSummary({ projects, latestCouncilRuns, activeFilter, onFilter }: {
+  projects: AgentProject[];
+  latestCouncilRuns: Record<string, CouncilRun | null>;
+  activeFilter: ProjectFilter;
+  onFilter: (filter: ProjectFilter) => void;
+}) {
+  const count = (filter: ProjectFilter) => projects.filter((project) => projectMatchesFilter(project, filter, latestCouncilRuns[project.id])).length;
+  const averageReadiness = Math.round(projects.reduce(
+    (total, project) => total + getProjectReadiness(project, latestCouncilRuns[project.id]).score, 0
+  ) / Math.max(projects.length, 1));
+  const tiles: { filter: ProjectFilter; label: string; value: number; tone: StatusTone }[] = [
+    { filter: 'attention', label: 'Need attention', value: count('attention'), tone: 'warning' },
+    { filter: 'high_risk', label: 'High risk', value: count('high_risk'), tone: 'danger' },
+    { filter: 'missing_connectors', label: 'Missing connectors', value: count('missing_connectors'), tone: 'warning' },
+    { filter: 'council_findings', label: 'Open Council findings', value: count('council_findings'), tone: 'danger' },
+    { filter: 'no_daily_report', label: 'No daily report', value: count('no_daily_report'), tone: 'neutral' }
+  ];
   return (
-    <div className="council-card-signal" aria-label="Council readiness signal">
-      <span>
-        <strong>{run ? summary.decision : 'Council pending'}</strong>
-        <small>{run ? `Ready ${summary.readiness}%` : 'Run review in cockpit'}</small>
-      </span>
-      <span>
-        <strong>{summary.critical}</strong>
-        <small>Critical</small>
-      </span>
-      <span>
-        <strong>{summary.high}</strong>
-        <small>High</small>
-      </span>
-    </div>
+    <section className="fleet-summary" aria-label="Fleet status">
+      <div className="summary-stat">
+        <span className="summary-label">Average readiness</span>
+        <strong className={`tone-text-${scoreTone(averageReadiness)}`}>{averageReadiness}%</strong>
+      </div>
+      {tiles.map((tile) => (
+        <button
+          key={tile.filter}
+          type="button"
+          className={`summary-stat ${activeFilter === tile.filter ? 'active' : ''}`}
+          aria-pressed={activeFilter === tile.filter}
+          onClick={() => onFilter(activeFilter === tile.filter ? 'all' : tile.filter)}
+          title={`Show projects: ${tile.label.toLowerCase()}`}
+        >
+          <span className="summary-label">{tile.label}</span>
+          <strong className={tile.value > 0 ? `tone-text-${tile.tone}` : ''}>{tile.value}</strong>
+        </button>
+      ))}
+    </section>
   );
 }
 
@@ -757,25 +810,26 @@ function ProjectCockpit({ project, onBack, onSwitchProject, onLaunch, consoleLin
     addActivity(copied ? 'prompt_copied' : 'error', copied ? `Copied connector reference: ${connector.label}` : `Connector reference copy blocked: ${connector.label}`);
   }
 
+  // In-page links ("Review", "Open …") switch tabs; bring the tab bar into view
+  // so the change is visible, instead of announcing it with a toast.
   function handleOpenTab(tab: CockpitTab) {
     setActiveTab(tab);
     setDrawer(null);
-    notify(`Opened ${tabLabel(tab)} tab.`);
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    document.querySelector('.cockpit-tabs')?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
   }
 
   function handleOpenCouncilView(view: CouncilCenterView) {
     setRequestedCouncilView(view);
-    setActiveTab('council');
-    setDrawer(null);
-    notify(`Opened Council ${view.replace('_', ' ')} panel.`);
+    handleOpenTab('council');
   }
 
   return (
     <section className="cockpit page-stage">
       <ActionToast message={toast} />
       <aside className="side-rail glass-panel">
-        <button className="rail-home" onClick={onBack}><Home size={16} /> Launch Bay</button>
-        <div className="rail-title">Project Fleet</div>
+        <button className="rail-home" onClick={onBack}><Home size={16} /> All projects</button>
+        <div className="rail-title" id="project-rail-title">Projects</div>
         {seedProjects.map((item) => (
           <button
             key={item.id}
@@ -812,11 +866,16 @@ function ProjectCockpit({ project, onBack, onSwitchProject, onLaunch, consoleLin
           }}
         />
 
-        {project.id === 'legal-ops-console' && <OfwPanel />}
+        <CockpitTabs activeTab={activeTab} onChange={(tab) => { setActiveTab(tab); setDrawer(null); }} badges={tabBadges} hasRecords={Boolean(project.recordsWorkspace)} />
 
-        <CockpitTabs activeTab={activeTab} onChange={handleOpenTab} badges={tabBadges} />
+        <section
+          id={`project-cockpit-workflows-${activeTab}`}
+          className="tab-workspace"
+          role="tabpanel"
+          aria-labelledby={`project-cockpit-workflows-tab-${activeTab}`}
+        >
+          {activeTab === 'records' && project.recordsWorkspace === 'ofw' && <OfwPanel />}
 
-        <section id={`project-cockpit-workflows-${activeTab}`} className="tab-workspace" aria-live="polite">
           {activeTab === 'overview' && (
             <OverviewTab
               project={project}
@@ -933,6 +992,7 @@ interface NextBestActionModel {
 function tabLabel(tab: CockpitTab) {
   return {
     overview: 'Overview',
+    records: 'Records',
     agents: 'Agents',
     connectors: 'Connectors',
     daily_report: 'Daily Report',
@@ -1060,9 +1120,10 @@ function ProjectCommandHeader({
   );
 }
 
-function CockpitTabs({ activeTab, onChange, badges }: { activeTab: CockpitTab; onChange: (tab: CockpitTab) => void; badges: CockpitTabBadgeMap }) {
+function CockpitTabs({ activeTab, onChange, badges, hasRecords }: { activeTab: CockpitTab; onChange: (tab: CockpitTab) => void; badges: CockpitTabBadgeMap; hasRecords: boolean }) {
   const tabs: { id: CockpitTab; label: string; icon: ReactNode; badge?: number }[] = [
     { id: 'overview', label: tabLabel('overview'), icon: <LayoutDashboard size={15} /> },
+    ...(hasRecords ? [{ id: 'records' as CockpitTab, label: tabLabel('records'), icon: <FileSearch size={15} /> }] : []),
     { id: 'agents', label: tabLabel('agents'), icon: <Bot size={15} />, badge: badges.agents },
     { id: 'connectors', label: tabLabel('connectors'), icon: <ShieldCheck size={15} />, badge: badges.connectors },
     { id: 'daily_report', label: tabLabel('daily_report'), icon: <FileText size={15} />, badge: badges.daily_report },
@@ -1072,8 +1133,22 @@ function CockpitTabs({ activeTab, onChange, badges }: { activeTab: CockpitTab; o
     { id: 'settings', label: tabLabel('settings'), icon: <Settings size={15} />, badge: badges.settings }
   ];
 
+  const barRef = useRef<HTMLDivElement | null>(null);
+  // On narrow windows the tab row scrolls; keep the active tab visible when
+  // it changes from elsewhere (an in-page "Review" link, the next-action card).
+  // Horizontal only: never scroll the page itself.
+  useEffect(() => {
+    const bar = barRef.current;
+    const tab = bar?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+    if (!bar || !tab) return;
+    const barBox = bar.getBoundingClientRect();
+    const tabBox = tab.getBoundingClientRect();
+    if (tabBox.left < barBox.left) bar.scrollLeft -= barBox.left - tabBox.left;
+    else if (tabBox.right > barBox.right) bar.scrollLeft += tabBox.right - barBox.right;
+  }, [activeTab]);
+
   return (
-    <div className="cockpit-tabs glass-panel">
+    <div className="cockpit-tabs glass-panel" ref={barRef}>
       <Tabs items={tabs} activeId={activeTab} onChange={onChange} label="Project cockpit workflows" />
     </div>
   );
@@ -1107,19 +1182,16 @@ function OverviewTab({
   return (
     <div className="overview-layout">
       <NextBestActionCard nextBestAction={nextBestAction} onAction={onNextBestAction} />
-      <ProductReadinessPanel project={project} />
-      <CockpitHudMatrix project={project} readiness={getProjectReadiness(project, councilRun, savedReports)} />
-      <MentorGuide guidance={`${getProjectGuidance(project)} ${getCouncilGuidance(project, councilRun)}`} onAsk={onAskMentor} />
       <TopAttentionPanel project={project} councilRun={councilRun} onOpenTab={onOpenTab} />
-      <section className="glass-panel command-card operating-signals">
-        <h2><Layers size={18} /> Recent Operating Signals</h2>
-        <div className="signal-summary-grid">
-          <span><strong>{savedReports.length}</strong><small>Saved reports</small></span>
-          <span><strong>{councilRun?.findings.length ?? 0}</strong><small>Council findings</small></span>
-          <span><strong>{project.launchActions.length}</strong><small>Project launch actions</small></span>
-          <span><strong>{project.agents.length}</strong><small>Agent definitions</small></span>
-        </div>
-      </section>
+      <ProjectHealthPanel
+        project={project}
+        readiness={getProjectReadiness(project, councilRun, savedReports)}
+        councilRun={councilRun}
+        savedReportCount={savedReports.length}
+        onOpenTab={onOpenTab}
+      />
+      <ProductReadinessPanel project={project} />
+      <MentorGuide guidance={`${getProjectGuidance(project)} ${getCouncilGuidance(project, councilRun)}`} onAsk={onAskMentor} />
     </div>
   );
 }
@@ -1518,156 +1590,63 @@ function ReportList({ title, items }: { title: string; items: string[] }) {
   );
 }
 
-function FleetSituationWall({ projects, latestCouncilRuns }: { projects: AgentProject[]; latestCouncilRuns: Record<string, CouncilRun | null> }) {
-  const totalAgents = projects.reduce((total, project) => total + project.agents.length, 0);
-  const totalConnectors = projects.reduce((total, project) => total + project.connectors.length, 0);
-  const averageReadiness = Math.round(projects.reduce(
-    (total, project) => total + getProjectReadiness(project, latestCouncilRuns[project.id]).score,
-    0
-  ) / Math.max(projects.length, 1));
-  const attentionCount = projects.reduce(
-    (total, project) => total + project.connectors.filter((connector) => connector.status === 'attention' || connector.status === 'needs_setup').length,
-    0
-  );
-  const councilSummary = projects.reduce(
-    (summary, project) => {
-      const run = latestCouncilRuns[project.id];
-      summary.critical += run?.findings.filter((finding) => finding.severity === 'Critical' && finding.status !== 'fixed' && finding.status !== 'retest_passed').length ?? 0;
-      summary.high += run?.findings.filter((finding) => finding.severity === 'High' && finding.status !== 'fixed' && finding.status !== 'retest_passed').length ?? 0;
-      if (!readSavedReports(project.id).length) summary.withoutReports += 1;
-      if (run?.executiveDecision?.decision === 'Blocked' || run?.executiveDecision?.decision === 'Needs Repair') summary.needsRepair += 1;
-      return summary;
-    },
-    { critical: 0, high: 0, withoutReports: 0, needsRepair: 0 }
-  );
-
-  return (
-    <section className="fleet-situation-wall" aria-label="Fleet intelligence overview">
-      <article className="hud-window hud-wide">
-        <div className="hud-title"><Radar size={15} /> Fleet Signal</div>
-        <strong>{projects.length}</strong>
-        <span>Projects in this fleet</span>
-      </article>
-      <article className="hud-window">
-        <div className="hud-title"><Gauge size={15} /> Readiness</div>
-        <strong>{averageReadiness}%</strong>
-        <span>Average launch posture</span>
-      </article>
-      <article className="hud-window">
-        <div className="hud-title"><Bot size={15} /> Operators</div>
-        <strong>{totalAgents}</strong>
-        <span>Mapped agent units</span>
-      </article>
-      <article className="hud-window">
-        <div className="hud-title"><ShieldCheck size={15} /> Connectors</div>
-        <strong>{totalConnectors}</strong>
-        <span>{attentionCount} setup or attention</span>
-      </article>
-      <article className="hud-window">
-        <div className="hud-title"><CircleAlert size={15} /> Council Risk</div>
-        <strong>{councilSummary.critical}/{councilSummary.high}</strong>
-        <span>Critical / High open findings</span>
-      </article>
-      <article className="hud-window">
-        <div className="hud-title"><FileText size={15} /> Reports</div>
-        <strong>{councilSummary.withoutReports}</strong>
-        <span>Projects without saved reports</span>
-      </article>
-      <article className="hud-window hud-map">
-        <div className="hud-title"><Orbit size={15} /> Mission Map</div>
-        <WorldGrid />
-      </article>
-    </section>
-  );
-}
-
-function CockpitHudMatrix({ project, readiness }: { project: AgentProject; readiness: ReadinessSnapshot }) {
+/**
+ * Project health in one place, in plain language: the four readiness scores
+ * the header summarises, every connector with its status as text, and what
+ * the project holds. Replaces four jargon widgets that repeated the header.
+ */
+function ProjectHealthPanel({ project, readiness, councilRun, savedReportCount, onOpenTab }: {
+  project: AgentProject;
+  readiness: ReadinessSnapshot;
+  councilRun: CouncilRun | null;
+  savedReportCount: number;
+  onOpenTab: (tab: CockpitTab) => void;
+}) {
   const connected = project.connectors.filter((connector) => connector.status === 'connected').length;
   const actionCount = project.launchActions.length + project.agents.reduce((total, agent) => total + agent.launchActions.length, 0);
-
+  const openFindings = councilRun?.findings.filter((finding) => finding.status === 'open' || finding.status === 'in_progress').length ?? 0;
   return (
-    <section className="cockpit-hud-matrix" aria-label={`${project.name} command analytics`}>
-      <article className="hud-window command-map-panel">
-        <div className="hud-title"><Orbit size={15} /> Global Mission Grid</div>
-        <WorldGrid />
-        <div className="map-readout">
-          <span>{project.callsign}</span>
-          <strong>{project.status}</strong>
-        </div>
-      </article>
-      <article className="hud-window">
-        <div className="hud-title"><Activity size={15} /> Telemetry Spectrum</div>
-        <dl className="telemetry-values">
-          <div><dt>Coverage</dt><dd>{readiness.coverage}%</dd></div>
-          <div><dt>Connected</dt><dd>{connected}/{project.connectors.length}</dd></div>
-          <div><dt>Launch actions</dt><dd>{actionCount}</dd></div>
-        </dl>
-      </article>
-      <article className="hud-window">
-        <div className="hud-title"><Gauge size={15} /> Command Dials</div>
-        <div className="dial-row">
-          <Metric label="Ready" value={readiness.score} />
-          <Metric label="Auto" value={readiness.automation} />
-          <Metric label="Risk" value={readiness.risk} />
-        </div>
-      </article>
-      <article className="hud-window hud-wide">
-        <div className="hud-title"><ShieldCheck size={15} /> Infrastructure Stream</div>
-        <div className="connector-stream">
-          {!project.connectors.length && <span className="stream-node">No connectors configured.</span>}
+    <section className="glass-panel command-card project-health" aria-labelledby="project-health-title">
+      <h2 id="project-health-title"><Gauge size={18} /> Project health</h2>
+      <div className="health-meters">
+        <HealthMeter label="Readiness" value={readiness.score} tone={scoreTone(readiness.score)} />
+        <HealthMeter label="Risk" value={readiness.risk} tone={riskTone(readiness.risk)} />
+        <HealthMeter label="Automation" value={readiness.automation} tone={scoreTone(readiness.automation)} />
+        <HealthMeter label="Coverage" value={readiness.coverage} tone={scoreTone(readiness.coverage)} />
+      </div>
+      <h3 className="health-subhead">
+        Connectors <span>{connected} of {project.connectors.length} connected</span>
+      </h3>
+      {project.connectors.length ? (
+        <ul className="health-connectors">
           {project.connectors.map((connector) => (
-            <span key={connector.id} className={`stream-node status-${connector.status}`}>
-              {connector.type} / {connector.status.replace('_', ' ')}
-            </span>
+            <li key={connector.id}>
+              <span>{connector.label}</span>
+              <Badge tone={connectorStatusTone(connector.status)}>{CONNECTOR_STATUS_LABEL[connector.status]}</Badge>
+            </li>
           ))}
-        </div>
-      </article>
+        </ul>
+      ) : (
+        <p className="empty-inline">No connectors configured yet.</p>
+      )}
+      <div className="health-inventory">
+        <button type="button" onClick={() => onOpenTab('agents')}><strong>{project.agents.length}</strong> agent{project.agents.length === 1 ? '' : 's'}</button>
+        <button type="button" onClick={() => onOpenTab('launch_actions')}><strong>{actionCount}</strong> launch action{actionCount === 1 ? '' : 's'}</button>
+        <button type="button" onClick={() => onOpenTab('daily_report')}><strong>{savedReportCount}</strong> saved report{savedReportCount === 1 ? '' : 's'}</button>
+        <button type="button" onClick={() => onOpenTab('council')}><strong>{openFindings}</strong> open finding{openFindings === 1 ? '' : 's'}</button>
+      </div>
     </section>
   );
 }
 
-function projectTrend(snapshot: ReadinessSnapshot) {
-  const { score: readiness, automation, risk, coverage } = snapshot;
-  return [
-    Math.max(18, readiness - 18),
-    automation,
-    Math.max(12, 100 - risk),
-    coverage,
-    Math.min(98, readiness + 3),
-    Math.min(98, coverage + 6)
-  ];
-}
-
-function MiniTrendChart({ label, values }: { label: string; values: number[] }) {
-  const width = 280;
-  const height = 80;
-  const points = values.map((value, index) => {
-    const x = (index / Math.max(values.length - 1, 1)) * width;
-    const y = height - (Math.max(0, Math.min(100, value)) / 100) * height;
-    return `${x},${y}`;
-  }).join(' ');
-
+function HealthMeter({ label, value, tone }: { label: string; value: number; tone: StatusTone }) {
+  const clamped = Math.max(0, Math.min(100, value));
   return (
-    <div className="mini-trend" aria-label={label}>
-      <svg viewBox={`0 0 ${width} ${height}`} role="img">
-        <polyline points={points} />
-        <polygon points={`0,${height} ${points} ${width},${height}`} />
-      </svg>
-      <span>{label}</span>
-    </div>
-  );
-}
-
-function WorldGrid() {
-  return (
-    <div className="world-grid" aria-hidden="true">
-      <span className="continent continent-a" />
-      <span className="continent continent-b" />
-      <span className="continent continent-c" />
-      <span className="continent continent-d" />
-      <i className="map-dot dot-a" />
-      <i className="map-dot dot-b" />
-      <i className="map-dot dot-c" />
+    <div className={`health-meter tone-${tone}`}>
+      <div className="health-meter-label"><span>{label}</span><strong>{clamped}%</strong></div>
+      <div className="bar-track" role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={clamped}>
+        <span style={{ width: `${clamped}%` }} />
+      </div>
     </div>
   );
 }

@@ -165,7 +165,7 @@ export function OfwPanel() {
     <p className="ofw-help">Unread bodies stay private until you open them in OFW. Each sync checks recent messages and continues older history; repeat if the sync reports incomplete.</p>
     <div className="ofw-tabs"><Tabs items={recordTabs.map(([id,label])=>({id,label}))} activeId={tab} onChange={(id)=>{setTab(id);setResult(null);setDetail(null);setError('');}} label="OFW record types" /></div>
 
-    <form id={`ofw-record-types-${tab}`} className="ofw-search" onSubmit={e=>{e.preventDefault();search();}}>
+    <form id={`ofw-record-types-${tab}`} className="ofw-search" role="tabpanel" aria-labelledby={`ofw-record-types-tab-${tab}`} onSubmit={e=>{e.preventDefault();search();}}>
       {tab==='messages' && <>
         <div className="ofw-nl-mode" role="radiogroup" aria-label="Search mode">
           {([['natural','Ask a question'],['exact','Exact words']] as const).map(([id,label]) =>

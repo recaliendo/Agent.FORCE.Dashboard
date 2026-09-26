@@ -1927,3 +1927,158 @@ pre {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── Shell: context in the top bar ─────────────────────────────────────── */
+.top-context { display: flex; align-items: center; gap: var(--space-4); min-width: 0; }
+.top-context .brand-lockup { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 0; }
+.top-context .brand-mark { width: 32px; height: 32px; }
+.breadcrumbs ol { display: flex; align-items: center; gap: var(--space-2); margin: 0; padding: 0; list-style: none; font-size: var(--font-2); color: var(--text-3); min-width: 0; }
+.breadcrumbs li { display: inline-flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.breadcrumbs li + li::before { content: '/'; color: var(--border-strong); }
+.breadcrumbs a { color: var(--text-2); text-decoration: none; }
+.breadcrumbs a:hover { color: var(--text-1); text-decoration: underline; }
+.breadcrumbs [aria-current="page"] { color: var(--text-1); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.status-strip .status-link { min-height: 0; padding: 4px 10px; border-radius: 999px; font-size: var(--font-1); color: var(--text-2); background: transparent; }
+.status-strip .status-link.is-warning { border-color: var(--warning); color: var(--warning-ink); background: var(--warning-surface); }
+
+/* ── Shared: accessible hidden text, tone text, segmented control ──────── */
+.visually-hidden { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.tone-text-success { color: var(--accent-strong); }
+.tone-text-warning { color: var(--warning); }
+.tone-text-danger { color: var(--danger); }
+.tone-text-info { color: var(--info); }
+.tone-text-neutral { color: var(--text-2); }
+.inline-link { display: inline; min-height: 0; padding: 0; border: 0; background: none; color: var(--info); text-decoration: underline; }
+.inline-link:hover:not(:disabled) { background: none; color: var(--text-1); }
+
+/* One pattern for in-page view switches (filters, search mode, record type),
+   deliberately unlike the bordered cockpit tabs that navigate between areas. */
+.segmented,
+.ofw-tabs .ui-tabs,
+.council-view-tabs .ui-tabs,
+.ofw-nl-mode {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  width: auto;
+  min-width: 0;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2);
+  background: var(--surface-0);
+}
+.segmented button,
+.ofw-tabs .ui-tabs [role="tab"],
+.council-view-tabs .ui-tabs [role="tab"],
+.ofw-panel .ofw-nl-mode button {
+  min-height: 30px;
+  padding: 4px var(--space-3);
+  border: 0;
+  border-radius: var(--radius-1);
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--font-2);
+  white-space: nowrap;
+}
+.segmented button:hover:not(:disabled),
+.ofw-tabs .ui-tabs [role="tab"]:hover:not(:disabled),
+.council-view-tabs .ui-tabs [role="tab"]:hover:not(:disabled) { background: var(--surface-2); color: var(--text-1); }
+.segmented button.active,
+.ofw-tabs .ui-tabs [role="tab"][aria-selected="true"],
+.council-view-tabs .ui-tabs [role="tab"][aria-selected="true"],
+.ofw-tabs .ui-tabs button.active,
+.ofw-panel .ofw-nl-mode button.active { background: var(--surface-3); color: var(--text-1); font-weight: 600; box-shadow: inset 0 -2px 0 var(--accent); }
+.ofw-tabs { margin: var(--space-4) 0 var(--space-3); }
+.council-view-tabs { border-bottom: 0; padding-bottom: 0; }
+
+/* ── Projects page ─────────────────────────────────────────────────────── */
+.page-header { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; margin-bottom: var(--space-4); }
+.page-header h1 { margin: 0 0 var(--space-1); font-size: var(--font-5); }
+.page-header p { margin: 0; color: var(--text-3); }
+
+.fleet-summary { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 1px; margin-bottom: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-3); background: var(--border); overflow: hidden; }
+.summary-stat { display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: var(--space-1); min-height: 0; padding: var(--space-3) var(--space-4); border: 0; border-radius: 0; background: var(--surface-1); text-align: left; }
+button.summary-stat:hover:not(:disabled) { background: var(--surface-2); }
+button.summary-stat.active { background: var(--surface-3); box-shadow: inset 0 -2px 0 var(--accent); }
+.summary-label { color: var(--text-3); font-size: var(--font-1); }
+.summary-stat strong { font-size: var(--font-4); line-height: 1.1; font-variant-numeric: tabular-nums; }
+
+.fleet-toolbar { display: flex; align-items: center; gap: var(--space-2) var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-3); }
+.search-field { display: flex; align-items: center; gap: var(--space-2); flex: 1 1 260px; max-width: 420px; padding: 0 var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-2); background: var(--surface-0); color: var(--text-3); }
+.search-field:focus-within { outline: 2px solid var(--focus); outline-offset: 1px; }
+.search-field input { flex: 1; min-width: 0; min-height: 36px; border: 0; background: transparent; color: var(--text-1); outline: none; }
+.more-filters select { min-height: 38px; padding: 0 var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-2); background: var(--surface-0); color: var(--text-2); }
+.more-filters.active select { border-color: var(--accent); color: var(--text-1); }
+.fleet-toolbar .ghost { border-color: transparent; background: transparent; color: var(--text-2); }
+.toolbar-status { margin: 0 0 var(--space-3); color: var(--text-3); font-size: var(--font-1); }
+
+.table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-3); background: var(--surface-1); }
+.fleet-table { width: 100%; min-width: 900px; border-collapse: collapse; font-size: var(--font-2); }
+.fleet-table thead th { position: sticky; top: 0; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border); background: var(--surface-2); color: var(--text-3); font-size: var(--font-1); font-weight: 600; text-align: left; white-space: nowrap; }
+.fleet-table td,
+.fleet-table tbody th { padding: var(--space-3); border-bottom: 1px solid var(--border); vertical-align: top; text-align: left; font-weight: 400; }
+.fleet-table tbody tr:last-child > * { border-bottom: 0; }
+.fleet-table tbody tr { cursor: pointer; transition: background-color var(--motion-fast); }
+.fleet-table tbody tr:hover { background: var(--surface-2); }
+.fleet-table td > span,
+.fleet-table tbody th > span { display: block; }
+.fleet-table .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.fleet-table thead .num { text-align: right; }
+.row-link { min-height: 0; padding: 0; border: 0; background: none; color: var(--text-1); font-size: var(--font-3); font-weight: 600; text-align: left; }
+.row-link:hover:not(:disabled) { background: none; color: var(--accent-strong); text-decoration: underline; }
+.row-meta { margin-top: 2px; color: var(--text-3); font-size: var(--font-1); }
+.row-objective { max-width: 46ch; margin-top: var(--space-1); color: var(--text-2); font-size: var(--font-1); display: -webkit-box !important; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.row-next { max-width: 26ch; color: var(--text-2); }
+
+/* ── Project Overview: importance first ────────────────────────────────── */
+.overview-layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.overview-layout > .product-readiness-panel,
+.overview-layout > .mentor-guide { grid-row: auto; grid-column: auto; }
+.project-health h2 { margin-bottom: var(--space-3); }
+.health-meters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3) var(--space-4); }
+.health-meter-label { display: flex; justify-content: space-between; margin-bottom: 6px; color: var(--text-3); font-size: var(--font-1); }
+.health-meter-label strong { color: var(--text-1); font-variant-numeric: tabular-nums; }
+.health-meter .bar-track span { background: var(--accent); }
+.health-meter.tone-warning .bar-track span { background: var(--warning); }
+.health-meter.tone-danger .bar-track span { background: var(--danger); }
+.health-subhead { display: flex; justify-content: space-between; align-items: baseline; margin: var(--space-4) 0 var(--space-2); font-size: var(--font-2); }
+.health-subhead span { color: var(--text-3); font-weight: 400; font-size: var(--font-1); }
+.health-connectors { margin: 0; padding: 0; list-style: none; }
+.health-connectors li { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: 6px 0; border-top: 1px solid var(--border); font-size: var(--font-2); }
+.empty-inline { margin: 0; color: var(--text-3); font-size: var(--font-2); }
+.health-inventory { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); }
+.health-inventory button { min-height: 0; padding: 4px 10px; border-radius: 999px; color: var(--text-2); font-size: var(--font-1); }
+.health-inventory strong { color: var(--text-1); }
+
+/* ── Responsive for the above ──────────────────────────────────────────── */
+@media (max-width: 1320px) {
+  .fleet-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  .overview-layout { grid-template-columns: minmax(0, 1fr); }
+  .status-strip > span { display: none; }
+}
+@media (max-width: 620px) {
+  .top-context { gap: var(--space-2); }
+  .top-context .brand-lockup strong { display: none; }
+  .fleet-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .search-field { max-width: none; }
+  .health-meters { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* The cockpit column must never grow to its widest child's content: a grid
+   track sized by min-content let wide Council content push the page 215px
+   past a phone screen. */
+.cockpit-main { grid-template-columns: minmax(0, 1fr); }
+.tab-workspace { min-width: 0; }
+
+/* Cockpit tabs: one row that scrolls sideways when space runs out — never a
+   second row, which moves the content below every time a badge changes. */
+.cockpit-tabs .ui-tabs { flex-wrap: nowrap; width: max-content; min-width: 100%; }
+.cockpit-tabs .ui-tabs button { min-height: 40px; padding-inline: var(--space-3); }
+.cockpit-tabs .ui-tabs button { gap: 6px; padding-inline: 10px; }
+.cockpit-tabs .ui-tabs { gap: 2px; }
+
+/* OFW toolbar: actions grouped at the start, connection state at the end. */
+.ofw-panel > .ofw-toolbar { justify-content: flex-start; }
+.ofw-panel > .ofw-toolbar > [role="status"] { margin-left: auto; color: var(--text-2); font-size: var(--font-2); }

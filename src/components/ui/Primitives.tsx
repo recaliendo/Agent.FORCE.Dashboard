@@ -80,6 +80,7 @@ export function Tabs<T extends string>({ items, activeId, onChange, label }: {
           key={item.id}
           type="button"
           role="tab"
+          id={`${label.replace(/\s+/g, '-').toLowerCase()}-tab-${item.id}`}
           aria-selected={activeId === item.id}
           aria-controls={`${label.replace(/\s+/g, '-').toLowerCase()}-${item.id}`}
           tabIndex={activeId === item.id ? 0 : -1}

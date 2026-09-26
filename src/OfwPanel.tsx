@@ -118,12 +118,16 @@ export function OfwPanel() {
         if (!current) return current;
         switch (event.type) {
           case 'sources': return { ...current, label: current.label, sources: event.sources, caveats: event.caveats, phase: 'thinking' };
-          case 'phase': return { ...current, phase: event.phase === 'retrieving' ? 'retrieving' : 'thinking' };
+          case 'phase': return { ...current, phase: event.phase === 'retrieving' ? 'retrieving' : event.phase === 'queued' ? 'queued' : 'thinking' };
+          case 'progress': return { ...current, progress: { processed: event.processed, total: event.total, cached: event.cached }, phase: current.phase === 'streaming' ? 'streaming' : 'thinking' };
+          case 'notice': return { ...current, notice: event.message };
+          case 'truncated': return { ...current, truncatedAt: event.maxTokens };
+          case 'stats': return { ...current, stats: event.stats };
           case 'token': return { ...current, phase: 'streaming', text: current.text + event.token };
           case 'done': return { ...current, phase: 'done' };
           case 'error': {
             const cancelled = /^CANCELLED:/.test(event.error);
-            return { ...current, phase: cancelled ? 'cancelled' : 'error', error: cancelled ? undefined : friendlyModelError(event.error) };
+            return { ...current, phase: cancelled ? 'cancelled' : 'error', error: cancelled ? undefined : friendlyModelError(event.error, event.code) };
           }
           default: return current;
         }
@@ -155,7 +159,7 @@ export function OfwPanel() {
   const hits=isNatural && Array.isArray(result?.results) ? result!.results as unknown[] : [];
   const freshness=record(result?.freshness);
   const recordTabs = [['messages','Messages'],['expenses','Expenses'],['totals','Expense totals'],['calendar','Calendar']] as const;
-  const analysisRunning = analysis ? ['retrieving','thinking','streaming'].includes(analysis.phase) : false;
+  const analysisRunning = analysis ? ['retrieving','queued','thinking','streaming'].includes(analysis.phase) : false;
 
   return <section className="ofw-panel glass-panel" aria-label="OurFamilyWizard read-only workspace">
     <div className="ofw-heading"><div><div className="eyebrow"><ShieldCheck size={16}/> Private case workspace</div><h2>OurFamilyWizard</h2><p>Search your records. Keep the source in view.</p></div><span className="ofw-badge">Read only · No read receipts</span></div>
@@ -231,9 +235,18 @@ export function OfwPanel() {
   </section>;
 }
 
-function friendlyModelError(message: string): string {
+function friendlyModelError(message: string, code?: string): string {
   if (message.startsWith('REMOTE_MODEL_BLOCKED:')) return message.replace('REMOTE_MODEL_BLOCKED: ', '');
-  if (/SERVER_UNAVAILABLE|ECONNREFUSED|fetch failed|LLM endpoint failed/i.test(message)) return 'Local Qwen is not running. Start it with pnpm qwen:start, then try again. Search still works without it.';
-  if (message.startsWith('INACTIVITY_TIMEOUT:')) return 'Local Qwen stopped producing text. Try a narrower question or fewer dates.';
-  return message;
+  const kind = code ?? /^([A-Z_]+):/.exec(message)?.[1] ?? '';
+  const detail = message.replace(/^[A-Z_]+:\s*/, '');
+  switch (kind) {
+    case 'SERVER_UNAVAILABLE': return 'Local Qwen is not running. Open the chat panel’s Health check for the reason. Search still works without it.';
+    case 'RUNTIME_FAILED': return `Local Qwen could not start: ${detail} Search still works without it.`;
+    case 'MODEL_LOADING': return 'Local Qwen is still loading the model. Try again in a few seconds.';
+    case 'QUEUE_TIMEOUT': return 'Local Qwen stayed busy with another request. Try again when the chat is idle.';
+    case 'INACTIVITY_TIMEOUT': return 'Local Qwen went silent mid-answer. Run the chat panel’s Health check for details.';
+    case 'CONTEXT_OVERFLOW': return 'These excerpts were too large for the model’s context window. Narrow the question or the dates, or lower OFW_ANALYSIS_MAX_CHARS.';
+    case 'AUTH_FAILED': return 'The model server rejected the API key. Run the chat panel’s Health check for the fix.';
+    default: return detail || message;
+  }
 }

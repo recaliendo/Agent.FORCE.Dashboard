@@ -4,7 +4,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ensureManagedLocalLlm, getManagedLocalLlmState, stopManagedLocalLlm } from './localLlmRuntime.js';
-import { createSseDataParser } from './sseParser.js';
+import { fetchServerProps, fitMessagesToContext, QwenError, streamChatCompletion, type QwenErrorCode } from './qwenClient.js';
+import { applyDotEnv, getQwenConfig, toClientConfig } from './qwenConfig.js';
+import { formatDoctorReport, runQwenDoctor } from './qwenDoctor.js';
 import { OfwConnection } from './ofw.js';
 import { ANALYSIS_TASKS, buildChatContext, buildGroundedPrompt, groundingBudget, isLoopbackBaseUrl, TASK_LABELS, type AnalysisTask } from './ofw-grounding.js';
 
@@ -26,43 +28,10 @@ type ActiveQwenStream = {
 
 const activeQwenStreams = new Map<string, ActiveQwenStream>();
 
-function loadDotEnv() {
-  const envPath = path.resolve(process.cwd(), '.env');
-  if (!existsSync(envPath)) return;
-
-  for (const rawLine of readFileSync(envPath, 'utf8').split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith('#') || !line.includes('=')) continue;
-    const [key, ...rest] = line.split('=');
-    const name = key.trim();
-    const value = rest.join('=').trim().replace(/^['"]|['"]$/g, '');
-    if (name && process.env[name] === undefined) {
-      process.env[name] = value;
-    }
-  }
-}
-
-loadDotEnv();
-
-function getQwenConfig() {
-  const baseUrl = (process.env.LLM_BASE_URL || 'http://127.0.0.1:8080/v1').replace(/\/+$/, '');
-  const apiKey = process.env.LLM_API_KEY || process.env.LLAMA_API_KEY || '';
-  const modelName = process.env.LLM_MODEL_NAME || 'Qwen/Qwen3.6-35B-A3B';
-  const timeoutSeconds = Number(process.env.LLM_TIMEOUT_SECONDS || '5');
-  const inferenceConnectSeconds = Number(process.env.LLM_INFERENCE_CONNECT_TIMEOUT_SECONDS || '10');
-  const inferenceInactivitySeconds = Number(process.env.LLM_INFERENCE_INACTIVITY_TIMEOUT_SECONDS || '30');
-  const maxOutputTokens = Number(process.env.LLM_MAX_OUTPUT_TOKENS || '512');
-
-  return {
-    baseUrl,
-    apiKey,
-    modelName,
-    timeoutMs: Number.isFinite(timeoutSeconds) ? Math.max(1, timeoutSeconds) * 1000 : 5000,
-    inferenceConnectTimeoutMs: Number.isFinite(inferenceConnectSeconds) ? Math.max(1, inferenceConnectSeconds) * 1000 : 10000,
-    inferenceInactivityTimeoutMs: Number.isFinite(inferenceInactivitySeconds) ? Math.max(5, inferenceInactivitySeconds) * 1000 : 30000,
-    maxOutputTokens: Number.isFinite(maxOutputTokens) ? Math.min(4096, Math.max(64, Math.floor(maxOutputTokens))) : 512
-  };
-}
+// Settings and credentials come from a local .env (gitignored); real
+// environment variables win. Shared with scripts/qwen-doctor.mjs.
+const envPath = path.resolve(process.cwd(), '.env');
+if (existsSync(envPath)) applyDotEnv(readFileSync(envPath, 'utf8'));
 
 function assertSafeLlmBaseUrl(baseUrl: string) {
   const parsed = new URL(baseUrl);
@@ -160,7 +129,7 @@ async function qwenChatCompletion(
     })
   }, {
     controller,
-    connectTimeoutMs: config.inferenceConnectTimeoutMs
+    connectTimeoutMs: config.queueTimeoutMs
   });
   return response;
 }
@@ -274,6 +243,17 @@ ipcMain.handle('agent-force:qwen-health', async () => {
   }
 });
 
+// Full diagnosis with measurements; the renderer shows it and can copy it.
+ipcMain.handle('agent-force:qwen-doctor', async (_event, appBuild?: string) => {
+  const config = getQwenConfig();
+  const report = await runQwenDoctor({
+    client: toClientConfig(config),
+    runtime: getManagedLocalLlmState(config.baseUrl),
+    ensureRuntime: () => ensureManagedLocalLlm(config)
+  });
+  return { ...report, text: formatDoctorReport(report, typeof appBuild === 'string' ? appBuild.slice(0, 120) : undefined) };
+});
+
 ipcMain.handle('agent-force:qwen-chat', async (_event, messages: ChatMessage[]) => {
   try {
     const response = await qwenChatCompletion(messages, false);
@@ -288,79 +268,72 @@ ipcMain.handle('agent-force:qwen-chat', async (_event, messages: ChatMessage[]) 
   }
 });
 
+/** llama.cpp's context size, cached briefly (it only changes when the server restarts). */
+let contextSizeCache: { baseUrl: string; at: number; nCtx?: number } | null = null;
+async function contextSize(): Promise<number | undefined> {
+  const config = getQwenConfig();
+  if (contextSizeCache && contextSizeCache.baseUrl === config.baseUrl && Date.now() - contextSizeCache.at < 60_000) return contextSizeCache.nCtx;
+  const props = await fetchServerProps(config);
+  // Remember only a real answer; a failed lookup is retried on the next request.
+  contextSizeCache = props?.nCtx ? { baseUrl: config.baseUrl, at: Date.now(), nCtx: props.nCtx } : null;
+  return props?.nCtx;
+}
+
 /**
  * Stream a chat completion to the renderer on `agent-force:qwen-stream:<id>`.
- * Shared by the Qwen chat panel and grounded OFW analysis.
+ * Shared by the Qwen chat panel and grounded OFW analysis. Events:
+ * phase (queued | prompt-evaluating) · progress · notice · token · stats ·
+ * truncated · done | error{code}.
  */
-async function streamQwenToSender(sender: Electron.WebContents, requestId: string, messages: ChatMessage[]) {
-  const event = { sender };
+async function streamQwenToSender(sender: Electron.WebContents, requestId: string, messages: ChatMessage[], options: { maxTokens?: number } = {}) {
+  const channel = `agent-force:qwen-stream:${requestId}`;
+  const send = (payload: Record<string, unknown>) => { if (!sender.isDestroyed()) sender.send(channel, payload); };
   const controller = new AbortController();
-  const stream: ActiveQwenStream = { controller, senderId: event.sender.id };
-  const existing = activeQwenStreams.get(requestId);
-  if (existing) existing.controller.abort();
+  const stream: ActiveQwenStream = { controller, senderId: sender.id };
+  activeQwenStreams.get(requestId)?.controller.abort();
   activeQwenStreams.set(requestId, stream);
   const config = getQwenConfig();
-  let inactivityTimedOut = false;
-  let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
-
-  const resetInactivityTimeout = () => {
-    if (inactivityTimer) clearTimeout(inactivityTimer);
-    inactivityTimer = setTimeout(() => {
-      inactivityTimedOut = true;
-      controller.abort();
-    }, config.inferenceInactivityTimeoutMs);
-  };
+  const maxTokens = options.maxTokens ?? config.maxOutputTokens;
 
   try {
-    const response = await qwenChatCompletion(messages, true, controller, () => {
-      if (!event.sender.isDestroyed()) {
-        event.sender.send(`agent-force:qwen-stream:${requestId}`, { type: 'phase', phase: 'prompt-evaluating' });
+    assertSafeLlmBaseUrl(config.baseUrl);
+    try {
+      await ensureManagedLocalLlm(config);
+    } catch (error) {
+      throw new QwenError('RUNTIME_FAILED', error instanceof Error ? error.message : 'The local model runtime did not start.');
+    }
+    if (controller.signal.aborted) throw new QwenError('CANCELLED', 'The inference request was cancelled.');
+
+    // Never send a prompt the server will reject: fit it to the real context
+    // window, dropping the oldest conversation first.
+    let outgoing = messages;
+    const nCtx = await contextSize();
+    if (nCtx) {
+      const fitted = fitMessagesToContext(messages, nCtx - maxTokens - 64);
+      outgoing = fitted.messages;
+      if (fitted.droppedMessages || fitted.trimmedChars) {
+        send({
+          type: 'notice',
+          message: fitted.droppedMessages
+            ? `Left out the ${fitted.droppedMessages} oldest message${fitted.droppedMessages === 1 ? '' : 's'} of this conversation to fit the model's ${nCtx.toLocaleString()}-token context.`
+            : `Shortened the request by ${fitted.trimmedChars.toLocaleString()} characters to fit the model's ${nCtx.toLocaleString()}-token context.`
+        });
       }
-    });
-    const reader = (response.body as any)?.getReader?.();
-    if (!reader) {
-      throw new Error('LLM endpoint did not provide a readable stream.');
     }
 
-    let sawDone = false;
-    const parser = createSseDataParser((data) => {
-      if (data === '[DONE]') {
-        sawDone = true;
-        return;
-      }
-      const chunk = JSON.parse(data);
-      const token = chunk?.choices?.[0]?.delta?.content;
-      if (typeof token === 'string' && token) {
-        resetInactivityTimeout();
-        event.sender.send(`agent-force:qwen-stream:${requestId}`, { type: 'token', token });
-      }
+    await streamChatCompletion(toClientConfig(config), outgoing, {
+      signal: controller.signal,
+      maxTokens,
+      onEvent: (event) => send(event as unknown as Record<string, unknown>)
     });
-    resetInactivityTimeout();
-
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      parser.push(value);
-      if (sawDone) break;
-    }
-    parser.finish();
-
-    event.sender.send(`agent-force:qwen-stream:${requestId}`, { type: 'done' });
+    send({ type: 'done' });
     return { ok: true };
   } catch (error) {
-    const message = inactivityTimedOut
-      ? `INACTIVITY_TIMEOUT: No visible token arrived for ${config.inferenceInactivityTimeoutMs / 1000}s.`
-      : error instanceof SyntaxError
-        ? `PARSE_ERROR: ${error.message}`
-        : error instanceof Error
-          ? error.message
-          : 'Qwen stream request failed.';
-    if (!event.sender.isDestroyed()) {
-      event.sender.send(`agent-force:qwen-stream:${requestId}`, { type: 'error', error: message });
-    }
+    const code: QwenErrorCode = error instanceof QwenError ? error.code : 'HTTP_ERROR';
+    const message = error instanceof Error ? error.message : 'Qwen stream request failed.';
+    send({ type: 'error', code, error: message });
     return { ok: false, error: message };
   } finally {
-    if (inactivityTimer) clearTimeout(inactivityTimer);
     if (activeQwenStreams.get(requestId) === stream) activeQwenStreams.delete(requestId);
   }
 }
@@ -400,7 +373,14 @@ ipcMain.handle('agent-force:ofw-analyze', async (event, requestId: string, reque
     if (task === 'answer' && !question) throw new Error('Type a question to answer.');
     assertLocalModelForOfw();
     send({ type: 'phase', phase: 'retrieving' });
-    const budget = groundingBudget(process.env);
+    const config = getQwenConfig();
+    const maxTokens = task === 'answer' ? config.maxOutputTokens : Math.max(config.maxOutputTokens, 768);
+    const nCtx = await contextSize();
+    const envBudget = groundingBudget(process.env);
+    // Leave room for the instructions (~600 tokens) and the answer; 3.2 chars/token is conservative.
+    const budget = nCtx
+      ? { ...envBudget, maxChars: Math.max(1500, Math.min(envBudget.maxChars, Math.floor((nCtx - maxTokens - 900) * 3.2))) }
+      : envBudget;
     const payload = await getOfwConnection().request('nlsearch', {
       query: question || 'messages',
       mode: 'natural',
@@ -420,7 +400,7 @@ ipcMain.handle('agent-force:ofw-analyze', async (event, requestId: string, reque
       send({ type: 'done' });
       return { ok: true };
     }
-    return await streamQwenToSender(event.sender, requestId, grounded.messages);
+    return await streamQwenToSender(event.sender, requestId, grounded.messages, { maxTokens });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'OFW analysis failed.';
     send({ type: 'error', error: message });

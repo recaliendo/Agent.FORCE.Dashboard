@@ -2082,3 +2082,37 @@ button.summary-stat.active { background: var(--surface-3); box-shadow: inset 0 -
 /* OFW toolbar: actions grouped at the start, connection state at the end. */
 .ofw-panel > .ofw-toolbar { justify-content: flex-start; }
 .ofw-panel > .ofw-toolbar > [role="status"] { margin-left: auto; color: var(--text-2); font-size: var(--font-2); }
+
+/* ── Qwen: live progress, honest failures, health report ───────────────── */
+.state-context-overflow,
+.state-runtime-failed,
+.state-http-error { border-color: var(--danger); color: var(--danger); }
+.state-model-loading,
+.state-queue-timeout,
+.state-queued { border-color: var(--warning); color: var(--warning); }
+.qwen-message.state-queued,
+.qwen-message.state-model-loading { color: var(--text-1); }
+
+.qwen-progress { display: grid; gap: 6px; margin: var(--space-2) 0; }
+.qwen-progress .bar-track span { background: var(--info); transition: width var(--motion-fast); }
+.qwen-progress small { color: var(--text-3); font-size: var(--font-1); }
+.qwen-note { margin: var(--space-2) 0 0; color: var(--text-3); font-size: var(--font-1); }
+.qwen-error-detail { margin: var(--space-2) 0 0; padding: var(--space-2) var(--space-3); border-left: 3px solid var(--danger); background: var(--surface-0); color: var(--text-2); font: var(--font-1)/1.5 ui-monospace, Consolas, monospace; overflow-wrap: anywhere; }
+
+.qwen-doctor { margin: var(--space-3) 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-2); background: var(--surface-0); }
+.qwen-doctor-head { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.qwen-doctor-head > span { flex: 1 1 280px; color: var(--text-2); }
+.qwen-doctor-head .ui-button { min-height: 32px; }
+.qwen-doctor-checks { margin: var(--space-3) 0 0; padding: 0; list-style: none; }
+.qwen-doctor-checks li { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: var(--space-3); align-items: start; padding: var(--space-2) 0; border-top: 1px solid var(--border); }
+.qwen-doctor-checks li .ui-badge { justify-self: start; }
+.qwen-doctor-checks li div { display: grid; gap: 2px; font-size: var(--font-2); }
+.qwen-doctor-checks li span { color: var(--text-2); overflow-wrap: anywhere; }
+.qwen-doctor-checks li em { color: var(--warning-ink); font-style: normal; }
+.qwen-doctor details { margin-top: var(--space-3); color: var(--text-3); }
+.qwen-doctor pre { max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: var(--font-1)/1.5 ui-monospace, Consolas, monospace; color: var(--text-2); }
+
+.build-stamp { color: var(--text-3); font-size: var(--font-1); font-variant-numeric: tabular-nums; }
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }

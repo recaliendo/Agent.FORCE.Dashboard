@@ -161,11 +161,50 @@ export interface QwenResult {
   error?: string;
 }
 
+/** Server-reported speed for one completion (llama.cpp `timings`). */
+export interface QwenStats {
+  promptTokens?: number;
+  cachedTokens?: number;
+  promptMs?: number;
+  promptTokensPerSecond?: number;
+  generatedTokens?: number;
+  generationMs?: number;
+  generationTokensPerSecond?: number;
+}
+
+/** Events on `agent-force:qwen-stream:<id>` (see electron/qwenClient.ts). */
 export type QwenStreamEvent =
-  | { type: 'phase'; phase: 'prompt-evaluating' }
+  | { type: 'phase'; phase: 'prompt-evaluating' | 'queued' }
+  | { type: 'progress'; processed: number; total: number; cached: number; elapsedMs: number }
   | { type: 'token'; token: string }
+  | { type: 'stats'; stats: QwenStats }
+  | { type: 'truncated'; maxTokens: number }
+  | { type: 'notice'; message: string }
   | { type: 'done' }
-  | { type: 'error'; error: string };
+  | { type: 'error'; error: string; code?: string };
+
+export type QwenDoctorStatus = 'pass' | 'warn' | 'fail' | 'skip';
+
+export interface QwenDoctorReport {
+  generatedAt: string;
+  baseUrl: string;
+  modelName: string;
+  checks: Array<{ id: string; label: string; status: QwenDoctorStatus; detail: string; remedy?: string }>;
+  measurements: {
+    contextSize?: number;
+    buildInfo?: string;
+    firstTokenMs?: number;
+    promptTokensPerSecond?: number;
+    generationTokensPerSecond?: number;
+    cachedTokenShare?: number;
+    progressFrames?: number;
+  };
+  logTail: string[];
+  verdict: QwenDoctorStatus;
+  summary: string;
+  /** Plain-text version, safe to paste (secrets redacted). */
+  text: string;
+}
 
 export type OfwAnalysisTask = 'answer' | 'summarize' | 'timeline' | 'commitments';
 
@@ -282,6 +321,7 @@ declare global {
       ofw: (action: string, input?: Record<string, unknown>) => Promise<{ ok: boolean; data?: unknown; error?: string }>;
       qwenConfig: () => Promise<QwenConfigResult>;
       qwenHealth: () => Promise<QwenResult>;
+      qwenDoctor: (appBuild?: string) => Promise<QwenDoctorReport>;
       qwenChat: (messages: QwenChatMessage[]) => Promise<QwenResult>;
       ofwChatContext: (question: string) => Promise<{
         ok: boolean;

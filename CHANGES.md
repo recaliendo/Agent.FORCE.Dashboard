@@ -119,3 +119,51 @@ recorded in the pull request.
   view and keep the active tab visible. The tab panel has `role="tabpanel"` labelled by
   its tab. Cockpit tabs stay on one row and scroll instead of wrapping. A min-content grid
   track let Council content push the page 215 px past a phone screen; fixed.
+
+## Qwen diagnosis and repair
+
+Evidence: measured against a real llama.cpp server (build b1-4df29be) running a small test
+model on CPU in the development container, not on the RTX 4060 laptop. The behaviour is the
+server's; the absolute speeds are not the laptop's.
+
+- **Errors are named, not all "Server unavailable".** Every unrecognised failure used to be
+  reported as the server being down. Errors now carry a code. The chat and Records panels
+  say what actually happened: key rejected, request too large, model still loading, busy,
+  runtime failed to start, server error, server silent, or not reachable.
+- **Queued requests are no longer killed.** llama.cpp sends response headers only when its
+  single slot starts a request. The 10 s "connect" timeout therefore cancelled any request
+  waiting behind another one; in the measurement, a queued request started at 32.4 s. The
+  wait is now `LLM_QUEUE_TIMEOUT_SECONDS` (default 180 s), and the chat shows "Waiting"
+  with the reason.
+- **Long prompts are no longer cut off while being read.** The 30 s limit counted only
+  visible answer text, so requests were cancelled while the model was still reading. The
+  old logic cancelled a 6,200-token prompt at 30.1 s; the new client completed it.
+  Requests now ask for `return_progress`, and any bytes count as activity, including
+  progress frames and the server's 30 s keep-alive. The silence limit defaults to 120 s
+  and is never below 90 s.
+- **Requests fit the context window.** The app reads the server's context size from
+  `/props` and fits each request to it. It drops the oldest conversation turns first, then
+  shortens the longest message in the middle, and tells the user what was left out. Records
+  analyses size their excerpt budget to the context as well. Oversized requests used to
+  fail with HTTP 400, which was shown as "Server unavailable".
+- **The prompt cache works across questions.** OFW excerpts used to sit in the system
+  prompt, so each question changed the prompt's opening and forced a full re-read. They
+  now go in the final user message after a stable system prompt, with `cache_prompt` on.
+  A repeated prompt dropped from 15 s to 62 ms on the test server.
+- **Visible progress.** While Qwen reads, the answer shows "Reading X of Y tokens · Z
+  reused from cache". Finished answers show reading and writing speed. Answers cut off at
+  the length limit say so and suggest asking "continue".
+- **Health check with real measurements.** `pnpm qwen:doctor` and the chat panel's Health
+  button check:
+  - the endpoint, the runtime files, reachability and the key;
+  - the context size, and whether another request is holding the slot.
+
+  They also measure first-word time, reading and writing speed, and cache reuse. They
+  recognise common runtime-log failures: GPU out of memory, a model that fails to load, a
+  port already in use, context overflow, and a rejected key. Reports redact keys and
+  tokens.
+- **Build stamp.** The top bar shows the commit the running app was built from, so an
+  outdated build is visible at a glance.
+- Tests: `tests/qwen-client.test.mjs` covers streaming, progress and keep-alive,
+  inactivity, queueing, truncation, error mapping, cancellation, context fitting, config
+  migration, and the doctor, using a scripted fake llama.cpp server.

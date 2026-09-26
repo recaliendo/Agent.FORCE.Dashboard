@@ -47,6 +47,7 @@ import {
 import { generateDailyReport } from './reportEngine';
 import { evaluateReadiness, type ReadinessSnapshot } from './readinessEngine';
 import { projectHash, resolveProjectRoute } from './projectRoutes';
+import { APP_BUILD, describeBuild } from './appBuild';
 import { CONNECTOR_STATUS_LABEL, connectorStatusTone, projectStatusTone, riskTone, scoreTone, type StatusTone } from './statusTone';
 import {
   getProjectReportStorageKey,
@@ -284,6 +285,7 @@ function App() {
           <span title="Shell commands from launch actions only run when AGENT_FORCE_ALLOW_COMMANDS=true is set; otherwise they are copied for manual review.">
             <ShieldCheck size={15} aria-hidden="true" /> Commands gated
           </span>
+          <span className="build-stamp" title={`Running ${describeBuild()}`}>Build {APP_BUILD.commit}</span>
         </div>
       </header>
 

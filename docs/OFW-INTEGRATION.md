@@ -37,11 +37,11 @@ The **Local Qwen** bar under the search box runs one of four tasks on the releva
 How it works (`electron/ofw-grounding.ts`, IPC `agent-force:ofw-analyze`):
 
 1. Natural-language search retrieves the most relevant messages (bodies included where cached).
-2. Only a bounded set of excerpts is sent: by default up to 8 messages and 6,000 characters, each excerpt centred on the matched text and labelled `[#<message number>] <date> · From … to … · Subject …`.
+2. Only a bounded set of excerpts is sent: by default up to 8 messages and 6,000 characters, each excerpt centred on the matched text and labelled `[#<message number>] <date> · From … to … · Subject …`. The character budget is also capped to what the model's context window can hold, read from the server's `/props`, after leaving room for the instructions and the answer.
 3. The model is instructed to use only those excerpts, cite every claim as `[#123]`, report what a message *says* rather than whether it is true, stay neutral, give no legal advice, and say "The retrieved messages don't show this." when they don't.
 4. The answer streams in with each citation as a button that jumps to its excerpt. The excerpts the model was given are listed under the answer. An answer that cites nothing is flagged as unsupported. Coverage limits (incomplete result, bodies not cached, only the top N of M matches read) are shown.
 
-The Qwen chat panel uses the same retrieval for Legal Ops questions (IPC `agent-force:ofw-chat-context`): the relevant message excerpts, plus expense totals and recent expenses only for money questions, and nearby calendar events only for schedule questions. It no longer sends the entire record with every question.
+The Qwen chat panel uses the same retrieval for Legal Ops questions (IPC `agent-force:ofw-chat-context`): the relevant message excerpts, plus expense totals and recent expenses only for money questions, and nearby calendar events only for schedule questions. It no longer sends the entire record with every question. The excerpts go in the question message, after a system prompt that stays the same between questions, so llama.cpp's prompt cache is reused for follow-ups instead of re-reading everything.
 
 ### Privacy rule: local model only
 
@@ -52,7 +52,7 @@ OFW content is only sent to a model on this computer. If `LLM_BASE_URL` is not a
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `OFW_ANALYSIS_MAX_MESSAGES` | `8` (1–20) | Messages sent to the model per analysis |
-| `OFW_ANALYSIS_MAX_CHARS` | `6000` (1,500–24,000) | Total excerpt characters per analysis. The default fits the 8,192-token local context with room for the answer |
+| `OFW_ANALYSIS_MAX_CHARS` | `6000` (1,500–24,000) | Total excerpt characters per analysis. The default fits the 8,192-token local context with room for the answer; a larger value is lowered automatically to fit the server's context |
 | `OFW_ALLOW_REMOTE_LLM` | unset | `true` allows OFW content to go to a non-local model |
 | `DISPLAY_TZ` | `America/New_York` | Zone for relative dates ("last week") in the local-ranking fallback; match the connector's |
 

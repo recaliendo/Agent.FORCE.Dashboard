@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('agentForce', {
   ofw: (action: string, input?: Record<string, unknown>) => ipcRenderer.invoke('agent-force:ofw', action, input),
   qwenConfig: () => ipcRenderer.invoke('agent-force:qwen-config'),
   qwenHealth: () => ipcRenderer.invoke('agent-force:qwen-health'),
+  qwenDoctor: (appBuild?: string) => ipcRenderer.invoke('agent-force:qwen-doctor', appBuild),
   qwenChat: (messages: unknown[]) => ipcRenderer.invoke('agent-force:qwen-chat', messages),
   ofwChatContext: (question: string) => ipcRenderer.invoke('agent-force:ofw-chat-context', question),
   ofwAnalyze: (requestId: string, request: Record<string, unknown>, onEvent: (event: unknown) => void) =>

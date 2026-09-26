@@ -56,6 +56,35 @@ On Windows PowerShell:
 $env:AGENT_FORCE_ALLOW_COMMANDS="true"; npm run electron:dev
 ```
 
+## OurFamilyWizard records search
+
+The **Legal Ops Console (EVIDENCE-DECK)** cockpit has a **Search your records** panel backed by the OurFamilyWizard MCP connector ([caliendohomes-rgb/RCOFWMCP](https://github.com/caliendohomes-rgb/RCOFWMCP)). It is natural-language search, not an exact-substring box:
+
+- **Ask a question** (default): *"what did she say about the dentist last month?"* The question is read for dates ("last month", "since March", "between May 1 and June 15"), for who wrote it ("I told her…" → sent, "she said…"/"from my ex" → received, "from Sarah"), for topic words with related wording (pay ↔ reimburse/receipt, pickup ↔ exchange/drop-off), and for typos. Quoted text is matched exactly; `-word` or `NOT word` excludes.
+- **All words**: every topic word (or a related form) must appear.
+- **Exact words**: the whole text as one literal phrase.
+
+Every result keeps the source in view: message number, sender → recipient, sent date/time, subject, and a passage of the original text with the matches highlighted, plus **Copy citation**. A **Read as** line shows exactly how the question was interpreted, so a narrowing you did not intend is visible; the folder selector overrides it. **Export** saves the request and full response as JSON.
+
+The panel never reports "nothing found" from a cache that OurFamilyWizard has not recently verified. It says the result is unverified and offers **Sync with OurFamilyWizard and search again**.
+
+### Connecting it
+
+The desktop app starts the connector itself (stdio) on the first search and keeps it running. Credentials stay in the Electron main process and never reach the page. Put the settings in a `.env` file in the project root (gitignored) or in your environment:
+
+```bash
+# Recommended: your build of RCOFWMCP, which has ofw_search_messages
+OFW_MCP_ENTRY=/path/to/RCOFWMCP/dist/index.js
+OFW_USERNAME=you@example.com
+OFW_PASSWORD=your-password
+# Optional: the zone OurFamilyWizard reports times in (default America/New_York)
+DISPLAY_TZ=America/New_York
+```
+
+Build the connector once: `git clone https://github.com/caliendohomes-rgb/RCOFWMCP && cd RCOFWMCP && npm install && npm run build` (Node 22.5+).
+
+Alternatives: `OFW_MCP_COMMAND` + `OFW_MCP_ARGS` (a JSON array or space-separated) for any launch command. With nothing set, the app runs `npx -y ofw-mcp`. If the connector has no `ofw_search_messages` (older published builds), the dashboard pages through `ofw_list_messages` and ranks the messages itself with the same search engine (`electron/ofw/search/`, vendored from RCOFWMCP), so questions still work. The badge in the panel says which path is in use.
+
 ## Registry model
 
 The first version stores project and agent definitions in a typed seed registry. The UI is intentionally structured so the registry can later move to encrypted local persistence, GitHub-backed sync, or a user-editable JSON database.

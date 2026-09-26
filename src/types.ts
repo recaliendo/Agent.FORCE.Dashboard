@@ -1,3 +1,5 @@
+import type { OfwSearchRequest, OfwSearchResponse, OfwStatus } from '../electron/ofw/contract';
+
 export type AgentOrigin = 'Codex' | 'Claude Code' | 'Hybrid' | 'Local' | 'Manual';
 
 export type ProjectStatus = 'Ready' | 'Planning' | 'Building' | 'Needs QA' | 'Paused';
@@ -71,6 +73,8 @@ export interface AgentProject {
   agents: AgentUnit[];
   launchActions: LaunchAction[];
   nextActions: string[];
+  /** Show the OurFamilyWizard records search panel in this project's cockpit. */
+  recordsSearch?: boolean;
 }
 
 declare global {
@@ -80,6 +84,8 @@ declare global {
       revealPath: (target: string) => Promise<{ ok: boolean; error?: string }>;
       runCommand: (command: string) => Promise<{ ok: boolean; output?: string; error?: string }>;
       getPlatform: () => Promise<string>;
+      ofwStatus: () => Promise<OfwStatus>;
+      ofwSearch: (request: OfwSearchRequest) => Promise<OfwSearchResponse>;
     };
   }
 }

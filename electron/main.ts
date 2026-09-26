@@ -1,10 +1,21 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import { exec } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { OfwSearchRequest } from './ofw/contract.js';
+import { OfwRecordsService } from './ofw/service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+// OFW connector settings and credentials can live in a local .env (gitignored).
+// Real environment variables win; a missing file is fine.
+try {
+  process.loadEnvFile(path.join(__dirname, '../../.env'));
+} catch {
+  /* no .env */
+}
+
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
 const allowCommands = process.env.AGENT_FORCE_ALLOW_COMMANDS === 'true';
 
@@ -55,8 +66,12 @@ ipcMain.handle('agent-force:reveal-path', async (_event, target: string) => {
     return { ok: false, error: 'No local path configured for this project.' };
   }
 
-  const result = shell.showItemInFolder(target);
-  return result ? { ok: true } : { ok: false, error: 'Unable to reveal that path.' };
+  if (!existsSync(target)) {
+    return { ok: false, error: 'That path does not exist on this machine.' };
+  }
+
+  shell.showItemInFolder(target);
+  return { ok: true };
 });
 
 ipcMain.handle('agent-force:run-command', async (_event, command: string) => {
@@ -84,6 +99,22 @@ ipcMain.handle('agent-force:run-command', async (_event, command: string) => {
 });
 
 ipcMain.handle('agent-force:get-platform', async () => process.platform);
+
+// OurFamilyWizard records search. The connector is started on first use and
+// kept running; credentials stay in this process's environment and never
+// cross to the renderer.
+const ofwRecords = new OfwRecordsService();
+
+ipcMain.handle('agent-force:ofw-status', async () => ofwRecords.status());
+
+ipcMain.handle('agent-force:ofw-search', async (_event, request: OfwSearchRequest) => {
+  if (!request || typeof request.query !== 'string' || request.query.length > 2000) {
+    return { ok: false, error: 'Search text is missing or too long (2,000 characters max).' };
+  }
+  return ofwRecords.search(request);
+});
+
+app.on('before-quit', () => ofwRecords.stop());
 
 app.whenReady().then(() => {
   createWindow();

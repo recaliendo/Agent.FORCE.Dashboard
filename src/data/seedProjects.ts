@@ -199,7 +199,8 @@ export const seedProjects: AgentProject[] = [
       risk: 57,
       coverage: 44
     },
-    tags: ['Legal Ops', 'Documents', 'Timeline', 'Evidence'],
+    tags: ['Legal Ops', 'Documents', 'Timeline', 'Evidence', 'OurFamilyWizard'],
+    recordsSearch: true,
     launchActions: [],
     nextActions: [
       'Add document vault path configuration.',

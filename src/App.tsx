@@ -17,6 +17,7 @@ import {
   Terminal,
   Zap
 } from 'lucide-react';
+import { RecordsSearch } from './components/RecordsSearch';
 import { seedProjects } from './data/seedProjects';
 import type { AgentProject, LaunchAction } from './types';
 
@@ -213,6 +214,8 @@ function ProjectCockpit({ project, onBack, onSwitchProject, onLaunch, consoleLin
             <small>Ready</small>
           </div>
         </section>
+
+        {project.recordsSearch && <RecordsSearch />}
 
         <section className="cockpit-grid">
           <div className="glass-panel command-card">

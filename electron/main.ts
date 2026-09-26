@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { ensureManagedLocalLlm, getManagedLocalLlmState, stopManagedLocalLlm } from './localLlmRuntime.js';
 import { createSseDataParser } from './sseParser.js';
 import { OfwConnection } from './ofw.js';
+import { ANALYSIS_TASKS, buildChatContext, buildGroundedPrompt, groundingBudget, isLoopbackBaseUrl, TASK_LABELS, type AnalysisTask } from './ofw-grounding.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -287,7 +288,12 @@ ipcMain.handle('agent-force:qwen-chat', async (_event, messages: ChatMessage[]) 
   }
 });
 
-ipcMain.handle('agent-force:qwen-stream-chat', async (event, requestId: string, messages: ChatMessage[]) => {
+/**
+ * Stream a chat completion to the renderer on `agent-force:qwen-stream:<id>`.
+ * Shared by the Qwen chat panel and grounded OFW analysis.
+ */
+async function streamQwenToSender(sender: Electron.WebContents, requestId: string, messages: ChatMessage[]) {
+  const event = { sender };
   const controller = new AbortController();
   const stream: ActiveQwenStream = { controller, senderId: event.sender.id };
   const existing = activeQwenStreams.get(requestId);
@@ -357,6 +363,86 @@ ipcMain.handle('agent-force:qwen-stream-chat', async (event, requestId: string, 
     if (inactivityTimer) clearTimeout(inactivityTimer);
     if (activeQwenStreams.get(requestId) === stream) activeQwenStreams.delete(requestId);
   }
+}
+
+ipcMain.handle('agent-force:qwen-stream-chat', async (event, requestId: string, messages: ChatMessage[]) =>
+  streamQwenToSender(event.sender, requestId, messages));
+
+function getOfwConnection() {
+  if (!ofwConnection) {
+    ofwConnection = new OfwConnection(process.env.AGENT_FORCE_OFW_CONFIG || path.resolve(process.cwd(), 'ofw.local.json'));
+  }
+  return ofwConnection;
+}
+
+/**
+ * OFW records are legal records: they may only be sent to a model running on
+ * this machine. OFW_ALLOW_REMOTE_LLM=true is the explicit, documented opt-out.
+ */
+function assertLocalModelForOfw() {
+  const { baseUrl } = getQwenConfig();
+  if (!isLoopbackBaseUrl(baseUrl) && process.env.OFW_ALLOW_REMOTE_LLM !== 'true') {
+    throw new Error(`REMOTE_MODEL_BLOCKED: OFW records are only sent to a model on this computer, but LLM_BASE_URL points to ${new URL(baseUrl).host}. Use the local Qwen server (http://127.0.0.1:8080/v1), or set OFW_ALLOW_REMOTE_LLM=true if you accept sending records to that provider.`);
+  }
+}
+
+type AnalyzeRequest = { task?: unknown; query?: unknown; folderId?: unknown; since?: unknown; until?: unknown };
+
+// Grounded analysis: retrieve the relevant messages, then have the local model
+// answer / summarize / build a timeline / extract commitments from those
+// excerpts only, citing message numbers. Events: sources → phase → token… → done | error.
+ipcMain.handle('agent-force:ofw-analyze', async (event, requestId: string, request: AnalyzeRequest) => {
+  const channel = `agent-force:qwen-stream:${requestId}`;
+  const send = (payload: Record<string, unknown>) => { if (!event.sender.isDestroyed()) event.sender.send(channel, payload); };
+  try {
+    const task = (ANALYSIS_TASKS as readonly unknown[]).includes(request?.task) ? request.task as AnalysisTask : 'answer';
+    const question = typeof request?.query === 'string' ? request.query.trim().slice(0, 500) : '';
+    if (task === 'answer' && !question) throw new Error('Type a question to answer.');
+    assertLocalModelForOfw();
+    send({ type: 'phase', phase: 'retrieving' });
+    const budget = groundingBudget(process.env);
+    const payload = await getOfwConnection().request('nlsearch', {
+      query: question || 'messages',
+      mode: 'natural',
+      folderId: request?.folderId,
+      since: request?.since || undefined,
+      until: request?.until || undefined,
+      limit: Math.min(50, Math.max(budget.maxMessages, 10)),
+      includeBody: true
+    }) as Record<string, unknown>;
+    if (typeof payload.result === 'string') {
+      throw new Error(`${String(payload.reason ?? 'The search could not be verified.')} ${String(payload.remedy ?? '')}`.trim());
+    }
+    const grounded = buildGroundedPrompt(task, question, payload, budget);
+    send({ type: 'sources', task, label: TASK_LABELS[task], sources: grounded.sources, caveats: grounded.caveats, interpretation: payload.interpretation, totalMatches: payload.totalMatches });
+    if (grounded.sources.length === 0) {
+      send({ type: 'token', token: "No messages matched, so there is nothing to analyse. Try different wording, widen the dates, or sync with OurFamilyWizard first." });
+      send({ type: 'done' });
+      return { ok: true };
+    }
+    return await streamQwenToSender(event.sender, requestId, grounded.messages);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'OFW analysis failed.';
+    send({ type: 'error', error: message });
+    return { ok: false, error: message };
+  }
+});
+
+// Retrieval for the Qwen chat panel: the few messages relevant to this
+// question, as cited excerpts — instead of the whole record.
+ipcMain.handle('agent-force:ofw-chat-context', async (_event, question: unknown) => {
+  try {
+    const q = typeof question === 'string' ? question.trim().slice(0, 500) : '';
+    if (!q) return { ok: false, error: 'No question.' };
+    assertLocalModelForOfw();
+    const budget = groundingBudget(process.env);
+    const payload = await getOfwConnection().request('nlsearch', { query: q, mode: 'natural', limit: Math.min(50, Math.max(budget.maxMessages, 10)), includeBody: true }) as Record<string, unknown>;
+    if (typeof payload.result === 'string') return { ok: false, error: String(payload.reason ?? 'OFW search could not be verified.') };
+    const { context, sources } = buildChatContext(q, payload, { ...budget, maxChars: Math.min(budget.maxChars, 4500) });
+    return { ok: true, data: { context, sources, interpretation: payload.interpretation } };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'OFW context unavailable.' };
+  }
 });
 
 ipcMain.on('agent-force:qwen-cancel', (event, requestId: string) => {
@@ -366,10 +452,7 @@ ipcMain.on('agent-force:qwen-cancel', (event, requestId: string) => {
 
 ipcMain.handle('agent-force:ofw', async (_event, action: unknown, input: unknown) => {
   try {
-    if (!ofwConnection) {
-      ofwConnection = new OfwConnection(process.env.AGENT_FORCE_OFW_CONFIG || path.resolve(process.cwd(), 'ofw.local.json'));
-    }
-    return { ok: true, data: await ofwConnection.request(action, input) };
+    return { ok: true, data: await getOfwConnection().request(action, input) };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : 'OFW read failed.' };
   }

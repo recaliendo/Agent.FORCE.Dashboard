@@ -27,6 +27,22 @@ export function readRequest(action: unknown, input: unknown = {}) {
       if (size > 25) throw new Error('Message page size cannot exceed 25');
       return {name:'ofw_list_messages', arguments:{folderId,page:integer('page',1),size,q:text('q'),since,until,view:'compact',autoRefresh:true}};
     }
+    case 'nlsearch': {
+      // Natural-language search (ofw_search_messages). The query is a
+      // question, so it gets more room than the exact-match `q`.
+      const query = text('query', 500);
+      if (!query || !query.trim()) throw new Error('Type what you are looking for');
+      const mode = text('mode') ?? 'natural';
+      if (!['natural','all','exact'].includes(mode)) throw new Error('Invalid mode');
+      const folderId = text('folderId');
+      if (folderId !== undefined && !['both','inbox','sent'].includes(folderId)) throw new Error('Invalid folder');
+      const since=date('since'), until=date('until');
+      if(since && until && since >= until) throw new Error('End date must be after start date');
+      const limit = a.limit ?? 25;
+      if (typeof limit !== 'number' || !Number.isSafeInteger(limit) || limit < 1 || limit > 50) throw new Error('Invalid limit');
+      if (a.includeBody !== undefined && typeof a.includeBody !== 'boolean') throw new Error('Invalid includeBody');
+      return {name:'ofw_search_messages', arguments:{query:query.trim(),mode,folderId,since,until,limit,includeBody:a.includeBody===true,autoRefresh:true}};
+    }
     case 'message': {
       const messageId=text('messageId',30);
       if(!messageId || !/^\d+$/.test(messageId)) throw new Error('Invalid message ID');

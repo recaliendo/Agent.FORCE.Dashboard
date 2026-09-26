@@ -167,6 +167,34 @@ export type QwenStreamEvent =
   | { type: 'done' }
   | { type: 'error'; error: string };
 
+export type OfwAnalysisTask = 'answer' | 'summarize' | 'timeline' | 'commitments';
+
+/** One message the model was shown, as electron/ofw-grounding.ts builds it. */
+export interface OfwGroundingSource {
+  messageId: number;
+  folder: string;
+  subject: string;
+  from: string | null;
+  to: string[];
+  sentAt: string;
+  sentAtDisplay?: string;
+  excerpt: string;
+  partial: boolean;
+}
+
+export type OfwAnalysisEvent =
+  | QwenStreamEvent
+  | { type: 'phase'; phase: 'retrieving' }
+  | {
+      type: 'sources';
+      task: OfwAnalysisTask;
+      label: string;
+      sources: OfwGroundingSource[];
+      caveats: string[];
+      interpretation?: unknown;
+      totalMatches?: number;
+    };
+
 export interface ConnectorHealthCheck {
   connectorId: string;
   checkedAt: string;
@@ -253,6 +281,16 @@ declare global {
       qwenConfig: () => Promise<QwenConfigResult>;
       qwenHealth: () => Promise<QwenResult>;
       qwenChat: (messages: QwenChatMessage[]) => Promise<QwenResult>;
+      ofwChatContext: (question: string) => Promise<{
+        ok: boolean;
+        data?: { context: string; sources: OfwGroundingSource[]; interpretation?: unknown };
+        error?: string;
+      }>;
+      ofwAnalyze: (
+        requestId: string,
+        request: { task: OfwAnalysisTask; query: string; folderId?: string; since?: string; until?: string },
+        onEvent: (event: OfwAnalysisEvent) => void
+      ) => () => void;
       qwenStreamChat: (
         requestId: string,
         messages: QwenChatMessage[],

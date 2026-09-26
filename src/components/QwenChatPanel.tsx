@@ -111,85 +111,47 @@ function recordRows(data: unknown, key: string) {
 }
 
 function summarizeRecord(item: unknown) {
-    const record = item && typeof item === 'object' ? item as Record<string, unknown> : {};
-    return {
-      id: record.id,
-      subject: record.subject,
-      date: record.sentAtDisplay ?? record.sentAt ?? record.date,
-      from: record.from,
-      description: record.description,
-      amount: record.amount,
-      type: record.type,
-      status: record.status,
-      body: typeof record.body === 'string' && record.body ? record.body : '[body not cached]'
-    };
-}
-
-function buildOfwContext(evidence: Record<string, unknown>) {
-  const freshness = evidence.freshness && typeof evidence.freshness === 'object' ? evidence.freshness as Record<string, unknown> : {};
-  return [
-    'OFW evidence context (read-only; retrieved for this prompt):',
-    `Scan complete: ${String(evidence.complete ?? 'unknown')}`,
-    `Freshness: ${String(freshness.staleness ?? 'unknown')} as of ${String(freshness.asOf ?? 'unknown')}`,
-    `Messages scanned: ${Array.isArray(evidence.messages) ? evidence.messages.length : 0}`,
-    `Expenses scanned: ${Array.isArray(evidence.expenses) ? evidence.expenses.length : 0}`,
-    `Calendar events scanned: ${Array.isArray(evidence.calendar) ? evidence.calendar.length : 0}`,
-    `Expense totals: ${JSON.stringify(evidence.totals ?? {})}`,
-    `Messages: ${JSON.stringify((evidence.messages as unknown[] ?? []).map(summarizeRecord))}`,
-    `Expenses: ${JSON.stringify((evidence.expenses as unknown[] ?? []).map(summarizeRecord))}`,
-    `Calendar: ${JSON.stringify((evidence.calendar as unknown[] ?? []).map(summarizeRecord))}`
-  ].join('\n');
-}
-
-async function scanOfwEvidence() {
-  const bridge = window.agentForce;
-  const ofw = bridge?.ofw;
-  if (typeof ofw !== 'function') throw new Error('OFW bridge unavailable');
-  const callOfw = (action: string, input: Record<string, unknown>) => ofw(action, input);
-  const until = new Date();
-  const untilDate = formatLocalDate(until);
-  const baseRange = { since: '2000-01-01', until: untilDate };
-  const sync = await callOfw('sync', {});
-  if (!sync.ok) throw new Error(sync.error ?? 'OFW sync failed');
-
-  async function collect(action: 'messages' | 'expenses', key: string) {
-    const rows: unknown[] = [];
-    let cursor = action === 'messages' ? 1 : 0;
-    let complete = false;
-    for (let iteration = 0; iteration < 40; iteration += 1) {
-      const input = action === 'messages'
-        ? { ...baseRange, folderId: 'both', page: cursor, size: 25, q: '' }
-        : { start: cursor, max: 25 };
-      const response = await callOfw(action, input);
-      if (!response.ok) throw new Error(response.error ?? `OFW ${action} failed`);
-      const data = response.data && typeof response.data === 'object' ? response.data as Record<string, unknown> : {};
-      rows.push(...recordRows(data, key));
-      complete = data.complete === true || data.hasMore === false || data.nextPage == null && data.nextStart == null;
-      if (complete) return { rows, complete: true, freshness: data.freshness };
-      cursor = action === 'messages'
-        ? Number(data.nextPage ?? cursor + 1)
-        : Number(data.nextStart ?? cursor + 25);
-    }
-    return { rows, complete: false };
-  }
-
-  const [messages, expenses, totals, calendar] = await Promise.all([
-    collect('messages', 'messages'),
-    collect('expenses', 'expenses'),
-    callOfw('totals', {}),
-    callOfw('calendar', { startDate: '2000-01-01', endDate: untilDate })
-  ]);
-  if (!totals.ok) throw new Error(totals.error ?? 'OFW expense totals failed');
-  if (!calendar.ok) throw new Error(calendar.error ?? 'OFW calendar scan failed');
-  const calendarData = calendar.data && typeof calendar.data === 'object' ? calendar.data as Record<string, unknown> : {};
+  const record = item && typeof item === 'object' ? item as Record<string, unknown> : {};
   return {
-    complete: messages.complete && expenses.complete,
-    freshness: messages.freshness ?? expenses.freshness,
-    messages: messages.rows,
-    expenses: expenses.rows,
-    totals: totals.data,
-    calendar: recordRows(calendarData, 'events')
+    id: record.id,
+    date: record.date ?? record.startDate ?? record.sentAtDisplay ?? record.sentAt,
+    title: record.title ?? record.subject,
+    description: record.description,
+    amount: record.amount,
+    type: record.type,
+    status: record.status
   };
+}
+
+const MONEY_WORDS = /\b(expenses?|reimburs\w*|paid|pay(ing|ment|s)?|costs?|owe[sd]?|money|bills?|receipts?|split|support)\b|\$/i;
+const CALENDAR_WORDS = /\b(calendar|schedul\w*|events?|visits?|weekends?|holidays?|pick-?ups?|drop-?offs?|exchanges?|custody|parenting time|appointments?)\b/i;
+const MAX_EXTRA_ROWS = 15;
+
+/**
+ * OFW evidence for one chat turn. Messages come from natural-language
+ * retrieval (the few relevant excerpts, cited by number) instead of the whole
+ * record; expenses and calendar are added only when the question is about
+ * them, and capped. The main process refuses unless the model is local.
+ */
+async function retrieveOfwContext(question: string): Promise<string> {
+  const bridge = window.agentForce;
+  if (!bridge?.ofwChatContext || !bridge.ofw) throw new Error('OFW bridge unavailable');
+  const retrieved = await bridge.ofwChatContext(question);
+  if (!retrieved.ok || !retrieved.data) throw new Error(retrieved.error ?? 'OFW search failed');
+  const parts = [retrieved.data.context];
+
+  if (MONEY_WORDS.test(question)) {
+    const [totals, expenses] = await Promise.all([bridge.ofw('totals', {}), bridge.ofw('expenses', { start: 0 })]);
+    if (totals.ok) parts.push(`OFW expense totals: ${JSON.stringify(totals.data ?? {})}`);
+    if (expenses.ok) parts.push(`Most recent OFW expenses (up to ${MAX_EXTRA_ROWS}): ${JSON.stringify(recordRows(expenses.data, 'expenses').slice(0, MAX_EXTRA_ROWS).map(summarizeRecord))}`);
+  }
+  if (CALENDAR_WORDS.test(question)) {
+    const start = new Date(); start.setDate(start.getDate() - 60);
+    const end = new Date(); end.setDate(end.getDate() + 60);
+    const calendar = await bridge.ofw('calendar', { startDate: formatLocalDate(start), endDate: formatLocalDate(end) });
+    if (calendar.ok) parts.push(`OFW calendar events, 60 days either side of today (up to ${MAX_EXTRA_ROWS}): ${JSON.stringify(recordRows(calendar.data, 'events').slice(0, MAX_EXTRA_ROWS).map(summarizeRecord))}`);
+  }
+  return parts.join('\n\n');
 }
 
 function buildQwenMessages(project: AgentProject, messages: TranscriptMessage[], ofwContext: string | null) {
@@ -199,7 +161,7 @@ function buildQwenMessages(project: AgentProject, messages: TranscriptMessage[],
     .slice(-MAX_CONTEXT_TURNS);
   const retainedTurns = new Set(completedTurnIds);
   const evidenceInstruction = ofwContext
-    ? `\n\n${ofwContext}\nUse this as source evidence. Separate observed facts from inferences, identify missing or stale data, and never claim the OFW record is complete unless Result complete is true.`
+    ? `\n\n${ofwContext}\nUse this as source evidence. Cite message numbers exactly like [#123] for every claim about the records, separate observed facts from inferences, and never claim the OFW record is complete when coverage limits are listed.`
     : '';
   return [
     { role: 'system' as const, content: `${SYSTEM_PROMPT}\n\nCurrent project context:\n${buildProjectContext(project)}${evidenceInstruction}` },
@@ -338,10 +300,9 @@ export function QwenChatPanel({ project, onActivity }: QwenChatPanelProps) {
 
     let contextForTurn = ofwContext;
     if (project.id === 'legal-ops-console') {
-      setStatus('Reading read-only OFW context...');
+      setStatus('Finding the relevant OFW messages...');
       try {
-        const evidence = await scanOfwEvidence();
-        contextForTurn = buildOfwContext(evidence);
+        contextForTurn = await retrieveOfwContext(content);
         setOfwContext(contextForTurn);
       } catch (error) {
         contextForTurn = `OFW evidence context was unavailable for this prompt: ${error instanceof Error ? error.message : 'connector error'}`;

@@ -1,0 +1,53 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Inter, Segoe UI, sans-serif","fontSize":"17px","primaryColor":"#eef7f2","primaryTextColor":"#10221a","primaryBorderColor":"#2f7d57","lineColor":"#536574","secondaryColor":"#eef4f8","tertiaryColor":"#fff7df","clusterBkg":"#f7f9fb","clusterBorder":"#aab8c2"},"flowchart":{"curve":"basis","nodeSpacing":28,"rankSpacing":50,"htmlLabels":true}}}%%
+flowchart TB
+  OP["Operator"] -->|selects project| AF["Agent FORCE Dashboard"]
+
+  subgraph CONTROL["Control Plane"]
+    direction TB
+    REG["Source-grounded registry"]
+    EVIDENCE["Evidence qualification<br/>live / setup / unknown"]
+    EVIDENCE --> READY["Readiness engine<br/>6 evidence collectors"]
+    READY --> ACTION["Ranked next action"]
+    READY --> CHAT["Qwen command interface"]
+  end
+
+  AF --> REG
+
+  subgraph FLEET["Four-Project Fleet and Tool Posture"]
+    direction LR
+    ROUTER["Fleet routing"]
+    TQ["TalentQuest<br/>GitHub: live<br/>Supabase: setup<br/>Lovable: unknown"]
+    HALO["Halo Portfolio Agent<br/>outbound navigation only<br/>ingestion blocked"]
+    SC["StandardCraft<br/>GitHub + Netlify: live<br/>Supabase / Stripe / SMTP: setup<br/>CI / MCP / analytics: qualified"]
+    DA["DivorceAgent<br/>local vault: setup<br/>repository: unknown"]
+  end
+
+  REG --> ROUTER
+  ROUTER --> TQ
+  ROUTER --> HALO
+  ROUTER --> SC
+  ROUTER --> DA
+  ROUTER -->|repository + tool evidence| EVIDENCE
+
+  subgraph OPERATIONS["Agent and Action Operations"]
+    direction TB
+    COUNCIL["Functional Council<br/>QA / Engineering / Marketing<br/>Product / Executive"]
+    REPORTS["Reports + findings + activity"]
+    LOCAL[("Project-scoped localStorage")]
+    GATE["Launch gate"]
+    TARGETS["Browser / dashboards<br/>local files<br/>explicit command opt-in"]
+  end
+
+  AF --> COUNCIL --> REPORTS --> LOCAL
+  AF --> GATE --> TARGETS
+  REG -->|bounded project context| CHAT
+  ACTION -->|reserved rationale| CHAT
+
+  classDef live fill:#e2f5e9,stroke:#2f7d57,color:#10221a,stroke-width:2px;
+  classDef setup fill:#fff7df,stroke:#b58812,color:#332600;
+  classDef unknown fill:#eef1f4,stroke:#768692,color:#26333b;
+  classDef secure fill:#f2edf8,stroke:#76559b,color:#241733;
+  class AF,READY,ACTION,CHAT,EVIDENCE live;
+  class SC,TQ,GATE,ROUTER setup;
+  class HALO,DA unknown;
+  class COUNCIL,LOCAL secure;

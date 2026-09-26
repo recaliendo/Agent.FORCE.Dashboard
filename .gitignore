@@ -1,9 +1,12 @@
 node_modules/
 dist/
 dist-electron/
+dist-electron-temp/
+.vite/
 release/
 .env
 .env.*
+ofw.local.json
 !.env.example
 .DS_Store
 *.log
@@ -11,3 +14,6 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+# Local QA browser profiles and scratch output
+work/

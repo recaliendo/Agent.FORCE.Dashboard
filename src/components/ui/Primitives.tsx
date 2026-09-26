@@ -7,10 +7,11 @@ export function Button({
   icon,
   className = '',
   children,
+  type = 'button',
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant; icon?: ReactNode }) {
   return (
-    <button className={`ui-button ui-button-${variant} ${className}`.trim()} {...props}>
+    <button type={type} className={`ui-button ui-button-${variant} ${className}`.trim()} {...props}>
       {icon}
       {children}
     </button>
@@ -80,8 +81,24 @@ export function Tabs<T extends string>({ items, activeId, onChange, label }: {
           type="button"
           role="tab"
           aria-selected={activeId === item.id}
+          aria-controls={`${label.replace(/\s+/g, '-').toLowerCase()}-${item.id}`}
+          tabIndex={activeId === item.id ? 0 : -1}
           className={activeId === item.id ? 'active' : ''}
           onClick={() => onChange(item.id)}
+          onKeyDown={(event) => {
+            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+            event.preventDefault();
+            const tabs = Array.from(event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]') ?? []);
+            if (!tabs.length) return;
+            const current = tabs.indexOf(event.currentTarget);
+            const next = event.key === 'Home'
+              ? 0
+              : event.key === 'End'
+                ? tabs.length - 1
+                : (current + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+            tabs[next]?.focus();
+            onChange(items[next].id);
+          }}
         >
           {item.icon}
           <span>{item.label}</span>

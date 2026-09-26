@@ -20,29 +20,42 @@
   --accent-ink: #07150e;
   --info: #62bce6;
   --warning: #e8b44e;
+  --warning-surface: #332b18;
+  --warning-ink: #ffe6a6;
   --danger: #eb727c;
   --focus: #9ad9f5;
   --overlay: rgba(0, 0, 0, 0.68);
 
   --space-1: 4px;
   --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
-  --space-7: 48px;
+  --space-3: clamp(12px, calc(12px + 0.2vw - 3.2px), 18px);
+  --space-4: clamp(16px, calc(16px + 0.3vw - 4.8px), 24px);
+  --space-5: clamp(24px, calc(24px + 0.45vw - 7.2px), 36px);
+  --space-6: clamp(32px, calc(32px + 0.6vw - 9.6px), 52px);
+  --space-7: clamp(48px, calc(48px + 0.8vw - 12.8px), 72px);
   --space-8: 64px;
 
   --radius-1: 3px;
   --radius-2: 6px;
   --radius-3: 8px;
 
-  --font-1: 0.75rem;
-  --font-2: 0.875rem;
-  --font-3: 1rem;
-  --font-4: 1.25rem;
-  --font-5: 1.563rem;
-  --font-6: 1.938rem;
+  --font-1: clamp(0.8125rem, calc(0.8125rem + 0.1vw - 1.6px), 0.9375rem);
+  --font-2: clamp(0.875rem, calc(0.875rem + 0.12vw - 1.92px), 1rem);
+  --font-3: clamp(1rem, calc(1rem + 0.15vw - 2.4px), 1.125rem);
+  --font-4: clamp(1.25rem, calc(1.25rem + 0.22vw - 3.52px), 1.5rem);
+  --font-5: clamp(1.563rem, calc(1.563rem + 0.33vw - 5.28px), 1.875rem);
+  --font-6: clamp(1.938rem, calc(1.938rem + 0.43vw - 6.88px), 2.375rem);
+  --font-body: clamp(1rem, calc(1rem + 0.5vw - 8px), 1.125rem);
+
+  --control-height-md: clamp(32px, calc(32px + 0.2vw - 3.2px), 36px);
+  --control-pad-x: clamp(12px, calc(12px + 0.16vw - 2.56px), 16px);
+  --control-pad-y: clamp(8px, calc(8px + 0.12vw - 1.92px), 11px);
+  --icon-sm: clamp(16px, calc(16px + 0.125vw - 2px), 18px);
+  --icon-md: clamp(18px, calc(18px + 0.125vw - 2px), 20px);
+  --icon-lg: clamp(22px, calc(22px + 0.125vw - 2px), 24px);
+  --panel-padding: clamp(16px, calc(16px + 1vw - 16px), 32px);
+  --rail-width: clamp(220px, calc(220px + 5vw - 80px), 280px);
+  --sticky-offset: calc(var(--space-7) + 3 * var(--space-2) + var(--space-3) + 2px);
 
   --motion-fast: 140ms ease-out;
   --motion-normal: 180ms ease-out;
@@ -64,6 +77,7 @@ body,
 
 body {
   min-height: 100vh;
+  font-size: var(--font-body);
   overflow-x: hidden;
 }
 
@@ -76,8 +90,36 @@ select {
 
 button,
 select {
-  min-height: var(--space-6);
+  min-height: var(--control-height-md);
 }
+
+/* Lucide dimensions follow the surrounding UI and never shrink out of a tab. */
+svg.lucide { width: var(--icon-sm); height: var(--icon-sm); flex-shrink: 0; }
+h2 svg.lucide, h3 svg.lucide { width: var(--icon-md); height: var(--icon-md); }
+.brand-mark svg.lucide, .qwen-mark svg.lucide { width: var(--icon-lg); height: var(--icon-lg); }
+
+.ofw-panel { margin: var(--space-5) 0; padding: var(--space-5); border: 1px solid var(--border); border-radius: var(--radius-3); background: var(--surface-1); min-width: 0; }
+.ofw-heading, .ofw-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.ofw-heading h2 { margin: var(--space-2) 0; }
+.ofw-heading p, .ofw-help { color: var(--text-3); line-height: 1.5; }
+.ofw-badge { border: 1px solid var(--accent); color: var(--accent-strong); border-radius: 999px; padding: 6px 10px; font-size: var(--font-1); }
+.ofw-tabs { margin: var(--space-5) 0 var(--space-4); min-width: 0; overflow-x: auto; }
+.ofw-tabs .ui-tabs { display: flex; width: max-content; max-width: 100%; gap: var(--space-2); }
+.ofw-tabs .ui-tabs button { white-space: nowrap; }
+.ofw-tabs .ui-tabs button.active { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+.ofw-panel button { display: inline-flex; align-items: center; gap: 7px; }
+.ofw-search { display: flex; align-items: end; gap: var(--space-3); flex-wrap: wrap; }
+.ofw-search label { display: flex; flex-direction: column; gap: 6px; color: var(--text-3); font-size: var(--font-2); min-width: 0; }
+.ofw-search label:first-child { flex: 1; min-width: 220px; }
+.ofw-field-help { color: var(--warning); font-size: var(--font-1); }
+.ofw-panel input, .ofw-panel select { padding: 9px; color: var(--text-1); background: var(--surface-0); border: 1px solid var(--border); border-radius: var(--radius-2); }
+.ofw-warning { margin: var(--space-3) 0; padding: var(--space-3); border-left: 3px solid var(--warning); background: var(--warning-surface); color: var(--warning-ink); }
+.ofw-notice { margin: var(--space-3) 0; color: var(--text-3); }
+.ofw-notice pre, .ofw-record pre, .ofw-detail pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 360px; overflow: auto; font: var(--font-2)/1.6 ui-monospace, Consolas, monospace; }
+.ofw-results { margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--border); }
+.ofw-record, .ofw-detail { margin: var(--space-3) 0; padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-2); background: var(--surface-0); }
+.ofw-record h3 { margin-top: 0; }
+.ofw-source { color: var(--accent-strong); font-size: var(--font-1); }
 
 button {
   display: inline-flex;
@@ -86,7 +128,7 @@ button {
   gap: var(--space-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-2);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--control-pad-y) var(--control-pad-x);
   background: var(--surface-2);
   color: var(--text-1);
   cursor: pointer;
@@ -171,13 +213,14 @@ pre {
   position: relative;
   min-height: 100vh;
   padding: var(--space-4);
+  padding-inline: clamp(16px, calc(16px + 2vw - 32px), 52px);
   background: var(--surface-0);
 }
 
 .page-stage {
   position: relative;
   z-index: 1;
-  width: min(100%, 1680px);
+  width: min(100%, 2200px);
   margin: 0 auto;
 }
 
@@ -287,6 +330,16 @@ pre {
   gap: var(--space-1);
 }
 
+.ui-tabs [role="tab"] {
+  min-height: 36px;
+}
+
+.ui-tabs [role="tab"][aria-selected="true"] {
+  border-color: var(--accent);
+  background: var(--surface-3);
+  color: var(--text-1);
+}
+
 .holo-border {
   border-color: var(--border-strong);
 }
@@ -331,7 +384,7 @@ pre {
 }
 
 .brand-lockup strong {
-  font-size: var(--font-2);
+  font-size: var(--font-3);
 }
 
 .brand-lockup small {
@@ -493,7 +546,30 @@ pre {
 }
 
 .launch-filter-bar {
+  align-items: center;
   margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.filter-label {
+  color: var(--text-3);
+  font-size: var(--font-1);
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.launch-filter-bar button[aria-pressed="true"],
+.launch-filter-bar .active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 13%, var(--surface-2));
+  color: var(--accent-strong);
+}
+
+.launch-filter-bar .filter-reset {
+  border-style: dashed;
+  color: var(--text-2);
 }
 
 .launch-filter-bar .active,
@@ -504,7 +580,7 @@ pre {
 
 .fleet-situation-wall {
   display: grid;
-  grid-template-columns: 2fr repeat(5, minmax(120px, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: var(--space-2);
 }
 
@@ -561,7 +637,17 @@ pre {
   display: grid;
   width: 100%;
   gap: var(--space-3);
-  padding: var(--space-4);
+  padding: var(--panel-padding);
+}
+
+.project-card p {
+  max-width: 42ch;
+  color: var(--text-2);
+  line-height: 1.5;
+}
+
+.project-card .callsign {
+  margin-bottom: 0;
 }
 
 .project-card h2,
@@ -664,6 +750,36 @@ pre {
   color: var(--text-2);
 }
 
+.council-card-signal {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) repeat(2, minmax(0, 0.75fr));
+  gap: var(--space-2);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: var(--space-2) 0;
+}
+
+.council-card-signal > span {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.council-card-signal > span:not(:first-child) {
+  border-left: 1px solid var(--border);
+  padding-left: var(--space-2);
+}
+
+.council-card-signal strong {
+  overflow-wrap: anywhere;
+  font-size: var(--font-2);
+}
+
+.council-card-signal small {
+  color: var(--text-3);
+  font-size: var(--font-1);
+}
+
 .next-action-preview {
   border-left: var(--space-1) solid var(--accent);
   padding-left: var(--space-3);
@@ -692,15 +808,15 @@ pre {
 /* Project workspace */
 .cockpit {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: var(--rail-width) minmax(0, 1fr);
   gap: var(--space-3);
   align-items: start;
 }
 
 .side-rail {
   position: sticky;
-  top: 88px;
-  padding: var(--space-3);
+  top: var(--sticky-offset);
+  padding: var(--space-4);
 }
 
 .rail-home,
@@ -712,6 +828,7 @@ pre {
 
 .rail-project {
   display: grid;
+  padding: var(--space-3) var(--space-4);
   min-height: var(--space-7);
   justify-items: start;
   text-align: left;
@@ -724,7 +841,7 @@ pre {
 
 .rail-project span {
   color: var(--text-1);
-  font-size: var(--font-1);
+  font-size: var(--font-2);
   font-weight: 750;
 }
 
@@ -740,9 +857,10 @@ pre {
 
 .project-command-header {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 36%);
+  container: project-header / inline-size;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 42%);
   gap: var(--space-4);
-  padding: var(--space-4);
+  padding: var(--panel-padding);
   background: var(--surface-2);
 }
 
@@ -775,7 +893,8 @@ pre {
 
 .context-chip strong {
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .context-chip small {
@@ -783,11 +902,17 @@ pre {
   font-size: var(--font-1);
 }
 
+@container project-header (min-width: 1100px) {
+  .project-context-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .context-chip { flex-direction: column; align-items: flex-start; justify-content: center; gap: var(--space-1); }
+}
+
 .next-action-strip {
   grid-column: 1 / -1;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  flex-wrap: wrap;
   gap: var(--space-3);
   border-top: 1px solid var(--border);
   padding-top: var(--space-3);
@@ -796,7 +921,7 @@ pre {
 
 .cockpit-tabs {
   position: sticky;
-  top: 88px;
+  top: var(--sticky-offset);
   z-index: 10;
   display: flex;
   gap: var(--space-1);
@@ -809,12 +934,19 @@ pre {
 .cockpit-tabs button {
   min-width: max-content;
   min-height: var(--space-7);
-  flex: 1 0 auto;
+  flex: 0 0 auto;
   white-space: nowrap;
+}
+
+.cockpit-tabs .ui-tabs button {
+  min-height: clamp(44px, calc(44px + 0.25vw - 4px), 50px);
+  font-size: var(--font-2);
 }
 
 .cockpit-tabs .ui-tabs {
   width: 100%;
+  min-width: 0;
+  flex-wrap: wrap;
 }
 
 .cockpit-tabs button.active {
@@ -864,7 +996,7 @@ pre {
 
 /* Chat */
 .qwen-chat-workflow {
-  padding: var(--space-4);
+  padding: var(--panel-padding);
   background: var(--surface-1);
 }
 
@@ -978,6 +1110,10 @@ pre {
   text-transform: capitalize;
 }
 
+.qwen-assistant .streaming-markdown {
+  max-width: 88ch;
+}
+
 .qwen-message p,
 .qwen-message ul,
 .qwen-message ol,
@@ -1014,13 +1150,17 @@ pre {
   font-size: var(--font-1);
 }
 
+.qwen-stream-meta {
+  opacity: 0.78;
+}
+
 .qwen-composer {
   align-items: stretch;
 }
 
 .qwen-composer textarea {
   min-width: 0;
-  min-height: var(--space-8);
+  min-height: clamp(64px, calc(64px + 0.8vw - 12.8px), 80px);
   flex: 1;
   resize: vertical;
   border: 1px solid var(--border);
@@ -1030,9 +1170,14 @@ pre {
   color: var(--text-1);
 }
 
+.qwen-composer textarea:focus-visible {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 18%, transparent);
+}
+
 .qwen-composer button {
-  width: calc(var(--space-8) + var(--space-7));
-  flex: 0 0 calc(var(--space-8) + var(--space-7));
+  width: clamp(112px, calc(112px + 3vw - 48px), 168px);
+  flex: 0 0 clamp(112px, calc(112px + 3vw - 48px), 168px);
 }
 
 .qwen-cancel-action {
@@ -1043,6 +1188,7 @@ pre {
 /* Overview and shared panels */
 .overview-layout {
   display: grid;
+  align-items: start;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-3);
 }
@@ -1050,7 +1196,7 @@ pre {
 .command-card,
 .next-best-action,
 .mentor-guide {
-  padding: var(--space-4);
+  padding: var(--panel-padding);
 }
 
 .next-best-action {
@@ -1066,11 +1212,15 @@ pre {
   display: flex;
   grid-column: 1 / -1;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  flex-wrap: wrap;
   gap: var(--space-4);
   border-left: var(--space-1) solid var(--accent);
-  padding: var(--space-4);
+  padding: var(--panel-padding);
 }
+
+.action-card > div:first-child { max-width: 68ch; }
+.action-card > .ui-button { flex-shrink: 0; }
 
 .action-card h2,
 .action-card p {
@@ -1147,6 +1297,23 @@ pre {
   gap: var(--space-3);
 }
 
+.product-readiness-panel {
+  container: product-clarity / inline-size;
+}
+
+.product-clarity-layout { display: grid; gap: var(--space-4); }
+.product-clarity-layout p, .product-clarity-layout li { max-width: 68ch; }
+.product-success-criteria h3 { margin-top: 0; }
+
+@container product-clarity (min-width: 800px) {
+  .product-clarity-layout {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-4);
+  }
+  .product-clarity-layout .product-clarity-grid { grid-template-columns: minmax(0, 1fr); }
+  .product-success-criteria { border-left: 1px solid var(--border); padding-left: var(--space-4); }
+}
+
 .product-clarity-grid > span,
 .finding-detail-grid > span,
 .config-readout-grid > span,
@@ -1200,10 +1367,21 @@ pre {
   flex: 0 0 auto;
 }
 
+.attention-list .ui-list-row { justify-content: flex-start; flex-wrap: wrap; }
+.attention-list .ui-list-row > div { max-width: 55ch; }
+.operating-signals { grid-column: 1 / -1; }
+.signal-summary-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: 1100px; }
+.telemetry-values { margin: 0; display: grid; gap: var(--space-2); }
+.telemetry-values > div { display: flex; justify-content: space-between; gap: var(--space-2); }
+.telemetry-values dt { color: var(--text-3); font-size: var(--font-1); }
+.telemetry-values dd { margin: 0; font-weight: 700; font-size: var(--font-2); }
+.ofw-help { max-width: 90ch; }
+
 .cockpit-hud-matrix {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-2);
+  align-items: start;
 }
 
 .command-map-panel,
@@ -1527,6 +1705,14 @@ pre {
   .fleet-situation-wall {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  .cockpit-tabs button {
+    min-width: max-content;
+    flex: 0 0 auto;
+    gap: 6px;
+    padding-inline: 8px;
+    font-size: var(--font-2);
+  }
 }
 
 @media (max-width: 900px) {
@@ -1596,7 +1782,7 @@ pre {
   }
 
   .cockpit-tabs {
-    top: 72px;
+    top: calc(var(--sticky-offset) - var(--space-2));
   }
 }
 
@@ -1628,6 +1814,74 @@ pre {
   .qwen-message {
     max-width: 100%;
   }
+
+  .ofw-panel { padding: var(--space-3); }
+  .ofw-search { align-items: stretch; flex-direction: column; }
+  .ofw-search label:first-child { min-width: 0; }
+  .ofw-search input,
+  .ofw-search select,
+  .ofw-search button { width: 100%; }
+}
+
+/* Wide desktop: allocate additional space to useful columns while keeping prose readable. */
+@media (min-width: 1800px) {
+  .page-stage {
+    width: min(100%, clamp(2200px, 76vw, 2700px));
+  }
+
+  .launch-hero-layout {
+    grid-template-columns: minmax(0, 1fr) clamp(360px, 20vw, 420px);
+  }
+
+  .project-grid {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--space-4);
+  }
+
+  .project-card {
+    min-height: 340px;
+  }
+
+  .project-card-inner {
+    gap: var(--space-4);
+  }
+
+  .cockpit {
+    gap: var(--space-4);
+  }
+
+  .project-command-header {
+    grid-template-columns: minmax(0, 560px) minmax(0, 760px);
+    gap: var(--space-5);
+  }
+
+  .overview-layout {
+    grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.85fr);
+    gap: var(--space-4);
+  }
+
+  .overview-layout > .mentor-guide { grid-row: span 2; }
+  .overview-layout > .operating-signals { grid-column: 2; }
+  .operating-signals .signal-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .cockpit-hud-matrix {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+
+  .agent-grid,
+  .connector-grid,
+  .launch-action-grid,
+  .council-agent-grid {
+    grid-template-columns: repeat(3, minmax(280px, 1fr));
+  }
+
+  .qwen-chat-workflow,
+  .ofw-panel,
+  .tab-workspace {
+    min-width: 0;
+  }
+
 }
 
 @media (prefers-reduced-motion: reduce) {

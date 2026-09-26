@@ -249,6 +249,7 @@ declare global {
       revealPath: (target: string) => Promise<{ ok: boolean; error?: string }>;
       runCommand: (command: string) => Promise<{ ok: boolean; output?: string; error?: string }>;
       getPlatform: () => Promise<string>;
+      ofw: (action: string, input?: Record<string, unknown>) => Promise<{ ok: boolean; data?: unknown; error?: string }>;
       qwenConfig: () => Promise<QwenConfigResult>;
       qwenHealth: () => Promise<QwenResult>;
       qwenChat: (messages: QwenChatMessage[]) => Promise<QwenResult>;

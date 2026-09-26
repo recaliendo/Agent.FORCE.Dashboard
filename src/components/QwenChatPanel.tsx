@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Bot, MessageCircle, RefreshCw, Send, ShieldCheck, Sparkles, Square, Trash2 } from 'lucide-react';
 import type { AgentProject, QwenChatMessage, QwenConfigResult } from '../types';
 import { evaluateReadiness } from '../readinessEngine';
@@ -101,12 +101,124 @@ function buildProjectContext(project: AgentProject) {
   ].join('\n');
 }
 
+function formatLocalDate(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function recordRows(data: unknown, key: string) {
+  const payload = data && typeof data === 'object' ? data as Record<string, unknown> : {};
+  return Array.isArray(payload[key]) ? payload[key] : [];
+}
+
+function summarizeRecord(item: unknown) {
+    const record = item && typeof item === 'object' ? item as Record<string, unknown> : {};
+    return {
+      id: record.id,
+      subject: record.subject,
+      date: record.sentAtDisplay ?? record.sentAt ?? record.date,
+      from: record.from,
+      description: record.description,
+      amount: record.amount,
+      type: record.type,
+      status: record.status,
+      body: typeof record.body === 'string' && record.body ? record.body : '[body not cached]'
+    };
+}
+
+function buildOfwContext(evidence: Record<string, unknown>) {
+  const freshness = evidence.freshness && typeof evidence.freshness === 'object' ? evidence.freshness as Record<string, unknown> : {};
+  return [
+    'OFW evidence context (read-only; retrieved for this prompt):',
+    `Scan complete: ${String(evidence.complete ?? 'unknown')}`,
+    `Freshness: ${String(freshness.staleness ?? 'unknown')} as of ${String(freshness.asOf ?? 'unknown')}`,
+    `Messages scanned: ${Array.isArray(evidence.messages) ? evidence.messages.length : 0}`,
+    `Expenses scanned: ${Array.isArray(evidence.expenses) ? evidence.expenses.length : 0}`,
+    `Calendar events scanned: ${Array.isArray(evidence.calendar) ? evidence.calendar.length : 0}`,
+    `Expense totals: ${JSON.stringify(evidence.totals ?? {})}`,
+    `Messages: ${JSON.stringify((evidence.messages as unknown[] ?? []).map(summarizeRecord))}`,
+    `Expenses: ${JSON.stringify((evidence.expenses as unknown[] ?? []).map(summarizeRecord))}`,
+    `Calendar: ${JSON.stringify((evidence.calendar as unknown[] ?? []).map(summarizeRecord))}`
+  ].join('\n');
+}
+
+async function scanOfwEvidence() {
+  const bridge = window.agentForce;
+  const ofw = bridge?.ofw;
+  if (typeof ofw !== 'function') throw new Error('OFW bridge unavailable');
+  const callOfw = (action: string, input: Record<string, unknown>) => ofw(action, input);
+  const until = new Date();
+  const untilDate = formatLocalDate(until);
+  const baseRange = { since: '2000-01-01', until: untilDate };
+  const sync = await callOfw('sync', {});
+  if (!sync.ok) throw new Error(sync.error ?? 'OFW sync failed');
+
+  async function collect(action: 'messages' | 'expenses', key: string) {
+    const rows: unknown[] = [];
+    let cursor = action === 'messages' ? 1 : 0;
+    let complete = false;
+    for (let iteration = 0; iteration < 40; iteration += 1) {
+      const input = action === 'messages'
+        ? { ...baseRange, folderId: 'both', page: cursor, size: 25, q: '' }
+        : { start: cursor, max: 25 };
+      const response = await callOfw(action, input);
+      if (!response.ok) throw new Error(response.error ?? `OFW ${action} failed`);
+      const data = response.data && typeof response.data === 'object' ? response.data as Record<string, unknown> : {};
+      rows.push(...recordRows(data, key));
+      complete = data.complete === true || data.hasMore === false || data.nextPage == null && data.nextStart == null;
+      if (complete) return { rows, complete: true, freshness: data.freshness };
+      cursor = action === 'messages'
+        ? Number(data.nextPage ?? cursor + 1)
+        : Number(data.nextStart ?? cursor + 25);
+    }
+    return { rows, complete: false };
+  }
+
+  const [messages, expenses, totals, calendar] = await Promise.all([
+    collect('messages', 'messages'),
+    collect('expenses', 'expenses'),
+    callOfw('totals', {}),
+    callOfw('calendar', { startDate: '2000-01-01', endDate: untilDate })
+  ]);
+  if (!totals.ok) throw new Error(totals.error ?? 'OFW expense totals failed');
+  if (!calendar.ok) throw new Error(calendar.error ?? 'OFW calendar scan failed');
+  const calendarData = calendar.data && typeof calendar.data === 'object' ? calendar.data as Record<string, unknown> : {};
+  return {
+    complete: messages.complete && expenses.complete,
+    freshness: messages.freshness ?? expenses.freshness,
+    messages: messages.rows,
+    expenses: expenses.rows,
+    totals: totals.data,
+    calendar: recordRows(calendarData, 'events')
+  };
+}
+
+function buildQwenMessages(project: AgentProject, messages: TranscriptMessage[], ofwContext: string | null) {
+  const completedTurnIds = messages
+    .filter((message) => message.role === 'assistant' && message.streamState === 'complete' && message.turnId)
+    .map((message) => message.turnId as string)
+    .slice(-MAX_CONTEXT_TURNS);
+  const retainedTurns = new Set(completedTurnIds);
+  const evidenceInstruction = ofwContext
+    ? `\n\n${ofwContext}\nUse this as source evidence. Separate observed facts from inferences, identify missing or stale data, and never claim the OFW record is complete unless Result complete is true.`
+    : '';
+  return [
+    { role: 'system' as const, content: `${SYSTEM_PROMPT}\n\nCurrent project context:\n${buildProjectContext(project)}${evidenceInstruction}` },
+    ...messages
+      .filter((message) =>
+        (message.role === 'user' || message.role === 'assistant') &&
+        Boolean(message.turnId && retainedTurns.has(message.turnId))
+      )
+      .map((message) => ({ role: message.role as 'user' | 'assistant', content: message.content }))
+  ];
+}
+
 export function QwenChatPanel({ project, onActivity }: QwenChatPanelProps) {
   const [config, setConfig] = useState<QwenConfigResult | null>(null);
   const [status, setStatus] = useState('Loading model configuration...');
   const [prompt, setPrompt] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [messages, setMessages] = useState<TranscriptMessage[]>([]);
+  const [ofwContext, setOfwContext] = useState<string | null>(null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
   const activeAssistantIdRef = useRef<string | null>(null);
@@ -114,26 +226,12 @@ export function QwenChatPanel({ project, onActivity }: QwenChatPanelProps) {
   const tokenCountRef = useRef(0);
   const progressTimerRef = useRef<number | null>(null);
 
-  const chatMessages = useMemo<QwenChatMessage[]>(() => {
-    const completedTurnIds = messages
-      .filter((message) => message.role === 'assistant' && message.streamState === 'complete' && message.turnId)
-      .map((message) => message.turnId as string)
-      .slice(-MAX_CONTEXT_TURNS);
-    const retainedTurns = new Set(completedTurnIds);
-
-    return [
-      { role: 'system', content: `${SYSTEM_PROMPT}\n\nCurrent project context:\n${buildProjectContext(project)}` },
-      ...messages
-        .filter((message) =>
-          (message.role === 'user' || message.role === 'assistant') &&
-          Boolean(message.turnId && retainedTurns.has(message.turnId))
-        )
-        .map((message) => ({ role: message.role as 'user' | 'assistant', content: message.content }))
-    ];
-  }, [messages, project]);
-
   useEffect(() => {
     let mounted = true;
+    if (!window.agentForce?.qwenConfig) {
+      setStatus('Qwen is available in the Electron desktop app.');
+      return () => { mounted = false; };
+    }
     window.agentForce?.qwenConfig?.().then((result) => {
       if (!mounted) return;
       setConfig(result);
@@ -158,6 +256,7 @@ export function QwenChatPanel({ project, onActivity }: QwenChatPanelProps) {
     stopProgressTimers();
     activeAssistantIdRef.current = null;
     setMessages([]);
+    setOfwContext(null);
     setPrompt('');
     setIsSending(false);
   }, [project.id]);
@@ -225,15 +324,28 @@ export function QwenChatPanel({ project, onActivity }: QwenChatPanelProps) {
     setIsSending(false);
     setPrompt('');
     setMessages([]);
+    setOfwContext(null);
     setStatus(config ? `${config.modelName} / ${config.baseUrl}` : 'Ready.');
   }
 
-  function sendMessage() {
+  async function sendMessage() {
     const content = prompt.trim();
     if (!content || isSending) return;
     if (!window.agentForce?.qwenStreamChat) {
       setStatus('Qwen bridge unavailable. Run inside the Electron app.');
       return;
+    }
+
+    let contextForTurn = ofwContext;
+    if (project.id === 'legal-ops-console') {
+      setStatus('Reading read-only OFW context...');
+      try {
+        const evidence = await scanOfwEvidence();
+        contextForTurn = buildOfwContext(evidence);
+        setOfwContext(contextForTurn);
+      } catch (error) {
+        contextForTurn = `OFW evidence context was unavailable for this prompt: ${error instanceof Error ? error.message : 'connector error'}`;
+      }
     }
 
     const requestId = makeId('qwen');
@@ -249,7 +361,7 @@ export function QwenChatPanel({ project, onActivity }: QwenChatPanelProps) {
       tokenCount: 0
     };
     const outgoingMessages: QwenChatMessage[] = [
-      ...chatMessages,
+      ...buildQwenMessages(project, messages, contextForTurn),
       { role: 'user', content }
     ];
 
@@ -374,6 +486,7 @@ export function QwenChatPanel({ project, onActivity }: QwenChatPanelProps) {
               }
             }}
             placeholder={`Ask Agent FORCE about ${project.name}...`}
+            aria-label={`Message Agent FORCE about ${project.name}`}
             disabled={isSending}
             rows={2}
           />

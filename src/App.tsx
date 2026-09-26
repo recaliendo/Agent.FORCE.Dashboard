@@ -34,6 +34,7 @@ import {
 import { seedProjects } from './data/seedProjects';
 import { CouncilCenter, type CouncilCenterView } from './components/CouncilCenter';
 import { QwenChatPanel } from './components/QwenChatPanel';
+import { OfwPanel } from './OfwPanel';
 import { ActionCard, Badge, EmptyState, ListRow, StatTile, Tabs } from './components/ui/Primitives';
 import { generateCouncilRun, summarizeCouncilRun } from './council/councilEngine';
 import { safeReadCouncilRuns, safeWriteCouncilRuns } from './council/councilStorage';
@@ -491,17 +492,21 @@ function ProjectLaunchBay({
                 </button>
               )}
             </div>
-            <div className="launch-filter-bar" aria-label="Project quick filters">
+            <div className="launch-filter-bar" aria-label="Project filters">
+              <span className="filter-label">Focus</span>
               {filters.map((filter) => (
                 <button
                   key={filter.id}
+                  type="button"
+                  aria-pressed={quickFilter === filter.id}
                   className={quickFilter === filter.id ? 'active' : ''}
                   onClick={() => setQuickFilter(filter.id)}
                 >
                   {filter.label}
                 </button>
               ))}
-              <button onClick={onRefreshSignals}><RefreshCw size={15} /> Refresh Fleet Signals</button>
+              {quickFilter !== 'all' && <button type="button" className="filter-reset" onClick={() => setQuickFilter('all')}>Clear filter</button>}
+              <button type="button" onClick={onRefreshSignals}><RefreshCw size={15} /> Refresh Fleet Signals</button>
             </div>
             {statusMessage && <div className="copy-status">{statusMessage}</div>}
           </div>
@@ -754,12 +759,14 @@ function ProjectCockpit({ project, onBack, onSwitchProject, onLaunch, consoleLin
 
   function handleOpenTab(tab: CockpitTab) {
     setActiveTab(tab);
+    setDrawer(null);
     notify(`Opened ${tabLabel(tab)} tab.`);
   }
 
   function handleOpenCouncilView(view: CouncilCenterView) {
     setRequestedCouncilView(view);
     setActiveTab('council');
+    setDrawer(null);
     notify(`Opened Council ${view.replace('_', ' ')} panel.`);
   }
 
@@ -773,6 +780,8 @@ function ProjectCockpit({ project, onBack, onSwitchProject, onLaunch, consoleLin
           <button
             key={item.id}
             className={`rail-project ${item.id === project.id ? 'active' : ''}`}
+            aria-current={item.id === project.id ? 'page' : undefined}
+            title={item.name}
             onClick={() => onSwitchProject(item.id)}
           >
             <span>{item.callsign}</span>
@@ -803,9 +812,11 @@ function ProjectCockpit({ project, onBack, onSwitchProject, onLaunch, consoleLin
           }}
         />
 
+        {project.id === 'legal-ops-console' && <OfwPanel />}
+
         <CockpitTabs activeTab={activeTab} onChange={handleOpenTab} badges={tabBadges} />
 
-        <section className="tab-workspace" aria-live="polite">
+        <section id={`project-cockpit-workflows-${activeTab}`} className="tab-workspace" aria-live="polite">
           {activeTab === 'overview' && (
             <OverviewTab
               project={project}
@@ -1100,7 +1111,7 @@ function OverviewTab({
       <CockpitHudMatrix project={project} readiness={getProjectReadiness(project, councilRun, savedReports)} />
       <MentorGuide guidance={`${getProjectGuidance(project)} ${getCouncilGuidance(project, councilRun)}`} onAsk={onAskMentor} />
       <TopAttentionPanel project={project} councilRun={councilRun} onOpenTab={onOpenTab} />
-      <section className="glass-panel command-card">
+      <section className="glass-panel command-card operating-signals">
         <h2><Layers size={18} /> Recent Operating Signals</h2>
         <div className="signal-summary-grid">
           <span><strong>{savedReports.length}</strong><small>Saved reports</small></span>
@@ -1117,12 +1128,16 @@ function ProductReadinessPanel({ project }: { project: AgentProject }) {
   return (
     <section className="glass-panel command-card product-readiness-panel">
       <h2><ListChecks size={18} /> Product Clarity</h2>
-      <div className="product-clarity-grid">
-        <span><strong>Customer need</strong>{project.customerNeed ?? 'Define who this project helps and what decision it improves.'}</span>
-        <span><strong>Current blocker</strong>{project.currentBlockers?.[0] ?? getProjectReadiness(project).topRisk}</span>
+      <div className="product-clarity-layout">
+        <div className="product-clarity-grid">
+          <span><strong>Customer need</strong>{project.customerNeed ?? 'Define who this project helps and what decision it improves.'}</span>
+          <span><strong>Current blocker</strong>{project.currentBlockers?.[0] ?? getProjectReadiness(project).topRisk}</span>
+        </div>
+        <div className="product-success-criteria">
+          <h3>Success Criteria</h3>
+          <ul>{(project.successCriteria ?? ['Define measurable success criteria for this project.']).map((item) => <li key={item}>{item}</li>)}</ul>
+        </div>
       </div>
-      <h3>Success Criteria</h3>
-      <ul>{(project.successCriteria ?? ['Define measurable success criteria for this project.']).map((item) => <li key={item}>{item}</li>)}</ul>
     </section>
   );
 }
@@ -1381,6 +1396,14 @@ function ActionDrawer({
   onOpenTab: (tab: CockpitTab) => void;
   onNotify: (message: string) => void;
 }) {
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [onClose]);
+
   async function copyDrawerContext() {
     const agent = drawer.kind === 'agent' ? project.agents.find((item) => item.id === drawer.agentId) : null;
     const text = drawer.kind === 'connector'
@@ -1395,14 +1418,14 @@ function ActionDrawer({
   }
 
   return (
-    <div className="drawer-backdrop" role="dialog" aria-modal="true" aria-label={drawer.title}>
+    <div className="drawer-backdrop" role="dialog" aria-modal="true" aria-label={drawer.title} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <aside className="action-drawer glass-panel">
         <div className="drawer-header">
           <div>
             <div className="eyebrow"><SlidersHorizontal size={15} /> Action Panel</div>
             <h2>{drawer.title}</h2>
           </div>
-          <button onClick={onClose} aria-label="Close action panel"><X size={18} /></button>
+          <button type="button" onClick={(event) => { event.stopPropagation(); onClose(); }} aria-label="Close action panel" title="Close action panel"><X size={18} /></button>
         </div>
 
         {drawer.kind === 'mentor' && (
@@ -1522,10 +1545,8 @@ function FleetSituationWall({ projects, latestCouncilRuns }: { projects: AgentPr
     <section className="fleet-situation-wall" aria-label="Fleet intelligence overview">
       <article className="hud-window hud-wide">
         <div className="hud-title"><Radar size={15} /> Fleet Signal</div>
-        <MiniTrendChart
-          label="Readiness waveform"
-          values={projects.flatMap((project) => projectTrend(getProjectReadiness(project, latestCouncilRuns[project.id]))).slice(0, 18)}
-        />
+        <strong>{projects.length}</strong>
+        <span>Projects in this fleet</span>
       </article>
       <article className="hud-window">
         <div className="hud-title"><Gauge size={15} /> Readiness</div>
@@ -1576,7 +1597,11 @@ function CockpitHudMatrix({ project, readiness }: { project: AgentProject; readi
       </article>
       <article className="hud-window">
         <div className="hud-title"><Activity size={15} /> Telemetry Spectrum</div>
-        <SignalBars values={[readiness.score, readiness.automation, 100 - readiness.risk, readiness.coverage, connected * 24, actionCount * 18]} />
+        <dl className="telemetry-values">
+          <div><dt>Coverage</dt><dd>{readiness.coverage}%</dd></div>
+          <div><dt>Connected</dt><dd>{connected}/{project.connectors.length}</dd></div>
+          <div><dt>Launch actions</dt><dd>{actionCount}</dd></div>
+        </dl>
       </article>
       <article className="hud-window">
         <div className="hud-title"><Gauge size={15} /> Command Dials</div>
@@ -1589,6 +1614,7 @@ function CockpitHudMatrix({ project, readiness }: { project: AgentProject; readi
       <article className="hud-window hud-wide">
         <div className="hud-title"><ShieldCheck size={15} /> Infrastructure Stream</div>
         <div className="connector-stream">
+          {!project.connectors.length && <span className="stream-node">No connectors configured.</span>}
           {project.connectors.map((connector) => (
             <span key={connector.id} className={`stream-node status-${connector.status}`}>
               {connector.type} / {connector.status.replace('_', ' ')}
@@ -1628,16 +1654,6 @@ function MiniTrendChart({ label, values }: { label: string; values: number[] }) 
         <polygon points={`0,${height} ${points} ${width},${height}`} />
       </svg>
       <span>{label}</span>
-    </div>
-  );
-}
-
-function SignalBars({ values }: { values: number[] }) {
-  return (
-    <div className="signal-bars" aria-label="Signal bar chart">
-      {values.map((value, index) => (
-        <span key={`${value}-${index}`} style={{ height: `${Math.max(12, Math.min(100, value))}%` }} />
-      ))}
     </div>
   );
 }

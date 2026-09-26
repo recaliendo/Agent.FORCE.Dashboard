@@ -346,5 +346,131 @@ export const seedProjects: AgentProject[] = [
       }
     ],
     unknownFields: ['repository']
+  },
+  {
+    id: 'yahoo-fantasy-manager',
+    name: 'Yahoo Fantasy Manager',
+    subtitle: 'Fantasy football league intelligence and reviewed roster moves',
+    callsign: 'GRIDIRON-OPS',
+    category: 'Fantasy Sports Automation',
+    status: 'Needs QA',
+    priority: 'High',
+    objective: 'Give an agent read/write access to my Yahoo Fantasy Football league via MCP, for league intel and reviewed roster moves.',
+    missionBrief: 'Wraps the mcp-yahoo-fantasy MCP server: an agent can pull league standings, rosters, matchups, and player data, and -- with my review at each step -- set lineups, work waivers, and respond to trades.',
+    customerNeed: 'I want league data and roster-management suggestions surfaced automatically, without giving up review before anything actually changes on my team.',
+    successCriteria: [
+      'list_leagues and other read tools return live data instead of an authorization error.',
+      'Every write action (lineup, add/drop, waiver, trade) is shown for my approval before it reaches Yahoo.',
+      'YAHOO_LEAGUE_KEY is set from a real league so tools stop requiring it on every call.'
+    ],
+    currentBlockers: [
+      'Yahoo Fantasy Sports API access application submitted 2026-09-19 for read/write scope -- pending manual review, no stated SLA. OAuth login succeeds but live calls currently return "This application is not authorized to perform this action."'
+    ],
+    repository: {
+      provider: 'github',
+      url: 'https://github.com/caliendohomes-rgb/mcp-yahoo-fantasy',
+      label: 'mcp-yahoo-fantasy',
+      reachability: 'verified'
+    },
+    localPaths: [
+      {
+        id: 'yahoo-workspace',
+        label: 'Local Workspace',
+        path: 'C:\\Users\\Richa\\OneDrive\\Documents\\mcp-yahoo-fantasy',
+        description: 'Local clone with .env holding OAuth tokens (gitignored, never committed).'
+      }
+    ],
+    safetyNotes: [
+      'Never store the Yahoo Client Secret, access token, or refresh token anywhere but the local .env file.',
+      'Require explicit human review before any write action (lineup, add/drop, waiver claim, trade response) reaches Yahoo.'
+    ],
+    accent: 'amber',
+    tags: ['Yahoo Fantasy', 'NFL', 'MCP', 'Claude Code', 'OAuth'],
+    connectors: [
+      {
+        id: 'yahoo-fantasy-oauth',
+        type: 'custom',
+        label: 'Yahoo Fantasy OAuth',
+        status: 'attention',
+        environment: 'production',
+        dataSource: 'yahoo_oauth-bridged tokens in yahoo/.env',
+        description: 'OAuth2 login completed and tokens saved, but Yahoo has not yet approved this app for live Fantasy Sports API access.',
+        reason: 'Yahoo discontinued self-serve provisioning of the Fantasy Sports API in 2026; new apps need manual review.',
+        nextStep: 'Wait for approval on the submitted access application, then re-run Verify Yahoo Connection below.',
+        lastChecked: '2026-09-19'
+      },
+      {
+        id: 'yahoo-fantasy-github',
+        type: 'github',
+        label: 'GitHub Source',
+        url: 'https://github.com/caliendohomes-rgb/mcp-yahoo-fantasy',
+        status: 'connected',
+        environment: 'production',
+        lastChecked: '2026-09-19',
+        dataSource: 'Fork of michaelfromorg/mcp-yahoo-fantasy',
+        description: 'Source repository verified: builds, tool registration (29 tools), and packaging all pass.'
+      }
+    ],
+    launchActions: [
+      {
+        id: 'yahoo-repo',
+        label: 'Open Repo',
+        type: 'url',
+        target: 'https://github.com/caliendohomes-rgb/mcp-yahoo-fantasy',
+        description: 'Open the mcp-yahoo-fantasy source repository.'
+      },
+      {
+        id: 'yahoo-workspace-open',
+        label: 'Open Local Workspace',
+        type: 'path',
+        target: 'C:\\Users\\Richa\\OneDrive\\Documents\\mcp-yahoo-fantasy',
+        description: 'Reveal the local clone in File Explorer.'
+      },
+      {
+        id: 'yahoo-verify',
+        label: 'Verify Yahoo Connection',
+        type: 'command',
+        target: 'cd /d "C:\\Users\\Richa\\OneDrive\\Documents\\mcp-yahoo-fantasy\\yahoo" && python -m uv run python -c "from yahoo.client import client; g = client.game(\'nfl\'); print(\'OK game_id=\', g.game_id())"',
+        description: 'One-shot check that the OAuth tokens work and Yahoo has approved API access.',
+        safetyNote: 'Runs a real API call against your Yahoo account. Requires AGENT_FORCE_ALLOW_COMMANDS=true.'
+      },
+      {
+        id: 'yahoo-access-application',
+        label: 'Open Yahoo API Access Application',
+        type: 'url',
+        target: 'https://sports.yahoo.com/developer/access/',
+        description: 'Yahoo\u2019s manual review form for Fantasy Sports API access (submitted 2026-09-19, pending).'
+      }
+    ],
+    nextActions: [
+      'Once approved, run the list_leagues tool to find the league key and set YAHOO_LEAGUE_KEY in yahoo/.env.',
+      'Add point-of-execution confirmation in this dashboard before any write action (lineup, add/drop, waiver, trade) reaches Yahoo.',
+      'Point an MCP client (e.g. Claude Desktop config) at the server once live data is confirmed working.'
+    ],
+    agents: [
+      {
+        id: 'league-intel-reader',
+        name: 'League Intel Reader',
+        callsign: 'SCOUT-FF',
+        origin: 'Claude Code',
+        role: 'League, team, and player data retrieval (read-only tools)',
+        status: 'Needs Configuration',
+        description: 'Covers the 21 read tools: standings, rosters, matchups, free agents/waivers, player stats and ownership, draft results, and transaction history. Blocked on Yahoo API access approval -- OAuth succeeds but calls currently return "application not authorized."',
+        tags: ['Standings', 'Rosters', 'Players', 'Matchups', 'Read-only'],
+        launchActions: []
+      },
+      {
+        id: 'roster-ops-commander',
+        name: 'Roster Ops Commander',
+        callsign: 'APPLY-FF',
+        origin: 'Claude Code',
+        role: 'Lineup, waiver, and trade execution (write tools)',
+        status: 'Draft',
+        description: 'Covers the 8 write tools: set_lineup, add/drop, waiver claims, and trade accept/reject -- all scoped to my own team. Requires explicit human review before each write action, and Yahoo\u2019s read/write scope approval (not yet granted).',
+        tags: ['Lineup', 'Waivers', 'Trades', 'Human-review'],
+        launchActions: []
+      }
+    ],
+    unknownFields: []
   }
 ];

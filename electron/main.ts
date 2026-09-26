@@ -5,11 +5,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ensureManagedLocalLlm, getManagedLocalLlmState, stopManagedLocalLlm } from './localLlmRuntime.js';
 import { createSseDataParser } from './sseParser.js';
+import { OfwConnection } from './ofw.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
 const allowCommands = process.env.AGENT_FORCE_ALLOW_COMMANDS === 'true';
+let ofwConnection: OfwConnection;
 
 type ChatMessage = {
   role: 'system' | 'user' | 'assistant';
@@ -362,6 +364,17 @@ ipcMain.on('agent-force:qwen-cancel', (event, requestId: string) => {
   if (stream?.senderId === event.sender.id) stream.controller.abort();
 });
 
+ipcMain.handle('agent-force:ofw', async (_event, action: unknown, input: unknown) => {
+  try {
+    if (!ofwConnection) {
+      ofwConnection = new OfwConnection(process.env.AGENT_FORCE_OFW_CONFIG || path.resolve(process.cwd(), 'ofw.local.json'));
+    }
+    return { ok: true, data: await ofwConnection.request(action, input) };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'OFW read failed.' };
+  }
+});
+
 app.whenReady().then(() => {
   createWindow();
   ensureManagedLocalLlm(getQwenConfig()).catch((error) => {
@@ -379,4 +392,5 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   stopManagedLocalLlm();
+  void ofwConnection?.close();
 });

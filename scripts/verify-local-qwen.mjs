@@ -16,7 +16,15 @@ async function request(url, init, timeoutMs = 5000) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(url, { ...init, signal: controller.signal });
+    let response;
+    try {
+      response = await fetch(url, { ...init, signal: controller.signal });
+    } catch (error) {
+      const detail = error?.name === 'AbortError'
+        ? `Timed out after ${timeoutMs} ms`
+        : 'The local Qwen server is not reachable';
+      throw new Error(`${detail} at ${url}. Start it with scripts\\start-local-qwen.ps1, then run verification again.`);
+    }
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
     return response;
   } finally {

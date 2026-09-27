@@ -322,7 +322,6 @@ declare global {
       qwenConfig: () => Promise<QwenConfigResult>;
       qwenHealth: () => Promise<QwenResult>;
       qwenDoctor: (appBuild?: string) => Promise<QwenDoctorReport>;
-      qwenChat: (messages: QwenChatMessage[]) => Promise<QwenResult>;
       ofwChatContext: (question: string) => Promise<{
         ok: boolean;
         data?: { context: string; sources: OfwGroundingSource[]; interpretation?: unknown };

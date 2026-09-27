@@ -164,6 +164,7 @@ export async function streamChatCompletion(
   };
   // Tell the UI we are waiting on the server only if it does not start promptly.
   const queuedNotice = setTimeout(() => emit({ type: 'phase', phase: 'queued' }), options.queuedNoticeMs ?? 2500);
+  let completed = false;
 
   try {
     arm(config.queueTimeoutMs, 'queue');
@@ -262,8 +263,13 @@ export async function streamChatCompletion(
     }
     if (stats) emit({ type: 'stats', stats });
     if (finishReason === 'length') emit({ type: 'truncated', maxTokens });
+    completed = true;
     return { text, finishReason, stats };
   } finally {
+    // Any failure (bad frame, error frame, early end) must close the request:
+    // otherwise llama.cpp keeps generating in its single slot and the next
+    // question queues behind an answer nobody will read.
+    if (!completed) controller.abort();
     clearTimeout(queuedNotice);
     if (timer) clearTimeout(timer);
     options.signal?.removeEventListener('abort', onOuterAbort);

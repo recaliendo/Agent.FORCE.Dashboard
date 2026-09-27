@@ -25,7 +25,8 @@ type QwenStreamState =
   | 'queue-timeout'
   | 'runtime-failed'
   | 'http-error'
-  | 'server-unavailable';
+  | 'server-unavailable'
+  | 'remote-blocked';
 
 interface TranscriptMessage {
   id: string;
@@ -79,7 +80,8 @@ const STREAM_STATE_COPY: Record<QwenStreamState, string> = {
   'queue-timeout': 'Qwen stayed busy with another request for too long. Try again.',
   'runtime-failed': 'The local Qwen runtime could not start. Run Health for the reason.',
   'http-error': 'The model server returned an error.',
-  'server-unavailable': 'The local Qwen server is not answering. Run Health for details.'
+  'server-unavailable': 'The local Qwen server is not answering. Run Health for details.',
+  'remote-blocked': 'OFW records are only sent to a model on this computer, so this request was refused.'
 };
 
 const STREAM_STATE_LABELS: Record<QwenStreamState, string> = {
@@ -97,10 +99,11 @@ const STREAM_STATE_LABELS: Record<QwenStreamState, string> = {
   'queue-timeout': 'Busy',
   'runtime-failed': 'Runtime failed',
   'http-error': 'Server error',
-  'server-unavailable': 'Server unavailable'
+  'server-unavailable': 'Server unavailable',
+  'remote-blocked': 'Blocked for privacy'
 };
 
-const ERROR_STATES = new Set<QwenStreamState>(['auth-failed', 'inactivity-timeout', 'parse-error', 'context-overflow', 'model-loading', 'queue-timeout', 'runtime-failed', 'http-error', 'server-unavailable']);
+const ERROR_STATES = new Set<QwenStreamState>(['auth-failed', 'inactivity-timeout', 'parse-error', 'context-overflow', 'model-loading', 'queue-timeout', 'runtime-failed', 'http-error', 'server-unavailable', 'remote-blocked']);
 
 const CODE_TO_STATE: Record<string, QwenStreamState> = {
   AUTH_FAILED: 'auth-failed',
@@ -112,7 +115,8 @@ const CODE_TO_STATE: Record<string, QwenStreamState> = {
   QUEUE_TIMEOUT: 'queue-timeout',
   RUNTIME_FAILED: 'runtime-failed',
   HTTP_ERROR: 'http-error',
-  SERVER_UNAVAILABLE: 'server-unavailable'
+  SERVER_UNAVAILABLE: 'server-unavailable',
+  REMOTE_MODEL_BLOCKED: 'remote-blocked'
 };
 
 /** The main process sends a code; older builds sent only a "CODE: detail" string. */
@@ -213,15 +217,20 @@ async function retrieveOfwContext(question: string): Promise<string> {
  * putting them in the system prompt changed its text every turn and forced
  * the whole conversation to be re-read each time.
  */
-function buildQwenMessages(project: AgentProject, messages: TranscriptMessage[], ofwContext: string | null, question: string): QwenChatMessage[] {
+type OfwTurnContext = { ok: true; context: string } | { ok: false; reason: string } | null;
+
+function buildQwenMessages(project: AgentProject, messages: TranscriptMessage[], ofw: OfwTurnContext, question: string): QwenChatMessage[] {
   const completedTurnIds = messages
     .filter((message) => message.role === 'assistant' && message.streamState === 'complete' && message.turnId)
     .map((message) => message.turnId as string)
     .slice(-MAX_CONTEXT_TURNS);
   const retainedTurns = new Set(completedTurnIds);
-  const finalUser = ofwContext
-    ? `${ofwContext}\n\nUse these excerpts as source evidence. Cite message numbers exactly like [#123] for every claim about the records, separate observed facts from inferences, and never claim the OFW record is complete when coverage limits are listed.\n\nQuestion: ${question}`
-    : question;
+  const finalUser = ofw?.ok
+    ? `${ofw.context}\n\nUse these excerpts as source evidence. Cite message numbers exactly like [#123] for every claim about the records, separate observed facts from inferences, and never claim the OFW record is complete when coverage limits are listed.\n\nQuestion: ${question}`
+    : ofw
+      // No excerpts reached the model, so it must not answer from the records at all.
+      ? `The OFW records could not be retrieved for this question (${ofw.reason}). Do not state or cite anything about the records; say they were unavailable and answer only what does not depend on them.\n\nQuestion: ${question}`
+      : question;
   return [
     { role: 'system' as const, content: `${SYSTEM_PROMPT}\n\nCurrent project context:\n${buildProjectContext(project)}` },
     ...messages
@@ -249,6 +258,9 @@ export function QwenChatPanel({ project, onActivity }: QwenChatPanelProps) {
   const startedAtRef = useRef(0);
   const tokenCountRef = useRef(0);
   const progressTimerRef = useRef<number | null>(null);
+  // The project on screen now; an OFW lookup that finishes after a switch is dropped.
+  const projectIdRef = useRef(project.id);
+  projectIdRef.current = project.id;
 
   useEffect(() => {
     let mounted = true;
@@ -389,15 +401,20 @@ export function QwenChatPanel({ project, onActivity }: QwenChatPanelProps) {
       return;
     }
 
-    let contextForTurn: string | null = null;
+    let contextForTurn: OfwTurnContext = null;
     if (project.recordsWorkspace === 'ofw') {
+      // Busy from here: retrieval takes seconds, and a second Send must not start a second turn.
+      setIsSending(true);
       setStatus('Finding the relevant OFW messages...');
+      const projectAtSend = project.id;
       try {
-        contextForTurn = await retrieveOfwContext(content);
-        setOfwContext(contextForTurn);
+        const context = await retrieveOfwContext(content);
+        contextForTurn = { ok: true, context };
+        setOfwContext(context);
       } catch (error) {
-        contextForTurn = `OFW evidence context was unavailable for this prompt: ${error instanceof Error ? error.message : 'connector error'}`;
+        contextForTurn = { ok: false, reason: error instanceof Error ? error.message : 'connector error' };
       }
+      if (projectIdRef.current !== projectAtSend) return;
     }
 
     const requestId = makeId('qwen');

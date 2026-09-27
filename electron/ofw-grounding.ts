@@ -9,7 +9,7 @@
  * labelled with its message number, and the model is required to cite them.
  *
  * Pure functions only: no Electron, no network. Tested in
- * tests/ofw-grounding.test.mjs.
+ * tests/backend-hardening.test.mjs.
  */
 
 export type AnalysisTask = 'answer' | 'summarize' | 'timeline' | 'commitments';
@@ -80,6 +80,12 @@ const SYSTEM_PROMPT = [
   '6. Excerpts marked (partial) show only a subject or preview; say so if an answer depends on one.',
   '7. Be concise.'
 ].join('\n');
+
+/** Epoch ms for ordering; unparseable dates sort first rather than breaking the order. */
+function instant(value: string): number {
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) ? ms : Number.NEGATIVE_INFINITY;
+}
 
 function str(value: unknown): string {
   return typeof value === 'string' ? value : value == null ? '' : String(value);
@@ -155,7 +161,7 @@ export function buildGroundedPrompt(
 ): GroundedPrompt {
   const hits = Array.isArray(payload.results) ? (payload.results as SearchHitLike[]) : [];
   let sources = buildSources(hits, budget);
-  if (task === 'timeline') sources = [...sources].sort((a, b) => a.sentAt.localeCompare(b.sentAt));
+  if (task === 'timeline') sources = [...sources].sort((a, b) => instant(a.sentAt) - instant(b.sentAt) || a.messageId - b.messageId);
   const caveats = coverageCaveats(payload);
   const topic = question.trim() || 'the retrieved messages';
   const user = [
@@ -186,14 +192,7 @@ export function buildChatContext(question: string, payload: Record<string, unkno
 }
 
 /** OFW content may only go to a model on this machine unless explicitly allowed. */
-export function isLoopbackBaseUrl(baseUrl: string): boolean {
-  try {
-    const host = new URL(baseUrl).hostname.replace(/^\[|\]$/g, '').toLowerCase();
-    return host === 'localhost' || host === '::1' || /^127(?:\.\d{1,3}){3}$/.test(host);
-  } catch {
-    return false;
-  }
-}
+export { isLoopbackBaseUrl } from './loopback.js';
 
 export function groundingBudget(env: Record<string, string | undefined>): GroundingBudget {
   const num = (v: string | undefined, fallback: number, min: number, max: number) => {

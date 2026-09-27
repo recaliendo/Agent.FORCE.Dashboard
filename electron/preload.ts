@@ -9,7 +9,6 @@ contextBridge.exposeInMainWorld('agentForce', {
   qwenConfig: () => ipcRenderer.invoke('agent-force:qwen-config'),
   qwenHealth: () => ipcRenderer.invoke('agent-force:qwen-health'),
   qwenDoctor: (appBuild?: string) => ipcRenderer.invoke('agent-force:qwen-doctor', appBuild),
-  qwenChat: (messages: unknown[]) => ipcRenderer.invoke('agent-force:qwen-chat', messages),
   ofwChatContext: (question: string) => ipcRenderer.invoke('agent-force:ofw-chat-context', question),
   ofwAnalyze: (requestId: string, request: Record<string, unknown>, onEvent: (event: unknown) => void) =>
     subscribeStream('agent-force:ofw-analyze', requestId, request, onEvent),
@@ -33,7 +32,16 @@ function subscribeStream(invokeChannel: string, requestId: string, payload: unkn
     onEvent(message);
   };
   ipcRenderer.on(channel, listener);
-  ipcRenderer.invoke(invokeChannel, requestId, payload).catch((error) => {
+  ipcRenderer.invoke(invokeChannel, requestId, payload).then((result: unknown) => {
+    // A request refused before streaming (bad id, untrusted sender) returns
+    // ok:false without an event; surface it so the UI never waits forever.
+    const r = result as { ok?: unknown; error?: unknown } | undefined;
+    if (!settled && r && r.ok === false) {
+      settled = true;
+      onEvent({ type: 'error', error: typeof r.error === 'string' ? r.error : 'Qwen stream request failed.' });
+    }
+  }, (error) => {
+    if (settled) return;
     settled = true;
     onEvent({ type: 'error', error: error instanceof Error ? error.message : 'Qwen stream request failed.' });
   });

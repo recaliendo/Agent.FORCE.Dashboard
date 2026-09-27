@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { closeSync, existsSync, openSync, readSync, statSync } from 'node:fs';
 import { fetchServerProps, QwenError, serverRoot, streamChatCompletion, type QwenClientConfig, type QwenStats } from './qwenClient.js';
 
@@ -75,6 +76,8 @@ const SECRET_PATTERNS: RegExp[] = [
   /(--api-key(?:-file)?\s+)\S+/gi,
   /(Bearer\s+)[A-Za-z0-9._~+/=-]+/gi,
   /(api[_-]?key["'=:\s]+)[A-Za-z0-9._~+/=-]{8,}/gi,
+  // Credentials by name: OFW_PASSWORD=…, password: …, "token": "…", secret=…
+  /((?:pass(?:word|wd)?|pwd|secret|token|credential)s?["']?\s*[=:]\s*["']?)[^\s"',;&]{3,}/gi,
   /\b(?:sk|ghp|github_pat|hf)[-_][A-Za-z0-9_-]{10,}/g,
   /\b[A-Fa-f0-9]{32,}\b/g
 ];
@@ -89,6 +92,16 @@ export function redact(line: string): string {
 }
 
 /** Last `maxLines` of a (possibly large) log file, redacted. */
+/**
+ * The app writes llama-server.log; `pnpm qwen:start` writes
+ * llama-server.stderr.log beside it. Read whichever was written last.
+ */
+export function newestLog(logPath: string): string {
+  const candidates = [logPath, path.join(path.dirname(logPath), 'llama-server.stderr.log')].filter((p) => p && existsSync(p));
+  if (!candidates.length) return logPath;
+  return candidates.reduce((a, b) => (statSync(b).mtimeMs > statSync(a).mtimeMs ? b : a));
+}
+
 export function readLogTail(logPath: string, maxLines = 40, maxBytes = 64 * 1024): string[] {
   if (!logPath || !existsSync(logPath)) return [];
   const size = statSync(logPath).size;
@@ -297,7 +310,7 @@ export async function runQwenDoctor(input: DoctorInput): Promise<DoctorReport> {
     }
   }
 
-  const logTail = runtime ? readLogTail(runtime.logPath) : [];
+  const logTail = runtime ? readLogTail(newestLog(runtime.logPath)) : [];
   const seen = new Set<string>();
   for (const line of logTail) {
     const known = LOG_PATTERNS.find((candidate) => candidate.pattern.test(line));

@@ -167,3 +167,73 @@ server's; the absolute speeds are not the laptop's.
 - Tests: `tests/qwen-client.test.mjs` covers streaming, progress and keep-alive,
   inactivity, queueing, truncation, error mapping, cancellation, context fitting, config
   migration, and the doctor, using a scripted fake llama.cpp server.
+
+## Backend hardening for QA handoff
+
+A staff-level audit of the Electron main process, the OFW connector connection, the
+managed llama-server runtime and the streaming client. Each defect below was reproduced
+or reasoned from the code, fixed, and covered by `tests/backend-hardening.test.mjs`.
+Two tests were checked against the unfixed code: the stderr-flood test hung without the
+fix, and the slot-release test failed without it.
+
+- **OFW connector could freeze.** Its stderr was piped but never read. About 64 KB of
+  connector warnings filled the pipe and blocked every later OurFamilyWizard request.
+  stderr is now drained into a bounded, redacted tail, which is also used to explain
+  connection failures.
+- **Connection errors hid their cause.** A failed connector start always said "check the
+  paths". It now includes the connector's last message (redacted), and a write-tool
+  refusal keeps its own reason.
+- **Model secrets leaked to the connector.** `LLM_*` and `LLAMA_*` variables are no
+  longer passed to the connector process. Read-only flags are always forced.
+- **The llama-server key was on the command line** when the key file was missing, where
+  any local process could read it. It is now passed through `LLAMA_API_KEY`.
+- **Startup failed while the model was loading.** A server already on the port that
+  answered 503 made startup throw. It is now waited for.
+- **Local-address checks disagreed.** Autostart didn't treat `[::1]` or other `127.x`
+  addresses as local, while the privacy guard did. There is now one shared check.
+- **A failed stream held the model's only slot.** After a bad frame or error frame, the
+  request stayed open and llama.cpp kept generating. The request is now closed.
+- **Stop was ignored during record retrieval.** Cancellation is now registered from the
+  start of an analysis. A window that closes mid-answer also aborts its requests.
+- **IPC trust boundary.**
+  - Every handler accepts calls only from the app's own page.
+  - Inputs are type-checked and bounded.
+  - A refused request now reaches the UI as an error instead of leaving it waiting.
+  - The unused non-streaming chat channel was removed.
+- **Privacy.**
+  - Chat content that carries OFW excerpts is refused for non-local models in the main
+    process too, not only by the renderer. The chat shows it as "Blocked for privacy".
+  - Redaction now covers named passwords, secrets and tokens.
+- **Window.** Navigation away from the app and `window.open` are denied. External links
+  open in the system browser. The production build has a Content-Security-Policy.
+- **Chat grounding.**
+  - If records can't be retrieved, the model is told they're unavailable instead of
+    being asked to cite excerpts it never received.
+  - A double Send during record lookup no longer starts two turns.
+  - A lookup that finishes after a project switch is dropped.
+- **Timeline order** now compares actual times, not timestamp strings with different UTC
+  offsets.
+- **`qwen:start`.**
+  - Stops overwriting PowerShell's `$args`.
+  - Adds defaults for unset settings.
+  - Quotes paths that contain spaces.
+  - Passes the key file only when it exists.
+- **Health check.** It now reads whichever server log is newest, including the one
+  `qwen:start` writes.
+- **Setup message.** The "not configured" message now points to the guide that exists.
+
+Validation:
+- `pnpm test`, 62 tests.
+- Typecheck, build and content lint.
+- A 14-check end-to-end pass in the real Electron app, using a stand-in OFW connector
+  and a stand-in model server:
+  - CSP and IPC trust;
+  - chat;
+  - refused and malformed requests;
+  - navigation and window guards;
+  - search and cited answers;
+  - Stop during retrieval and during generation, including slot release;
+  - double Send;
+  - no CSP violations and no console errors.
+
+Not validated here: Windows, PowerShell, and the real model on the target laptop.

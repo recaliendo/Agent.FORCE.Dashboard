@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { closeSync, existsSync, mkdirSync, openSync } from 'node:fs';
 import path from 'node:path';
+import { isLoopbackBaseUrl } from './loopback.js';
 
 type ManagedLlmOptions = {
   baseUrl: string;
@@ -32,10 +33,6 @@ function envValue(name: string, fallback: string) {
   return process.env[name]?.trim() || fallback;
 }
 
-function isLoopbackUrl(baseUrl: string) {
-  const hostname = new URL(baseUrl).hostname.toLowerCase();
-  return hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1';
-}
 
 function getManagedPaths() {
   const root = process.env.LLAMA_RUNTIME_ROOT || defaultRuntimeRoot();
@@ -81,7 +78,8 @@ function launchManagedServer(options: ManagedLlmOptions) {
 
   const endpoint = new URL(options.baseUrl);
   const port = endpoint.port || (endpoint.protocol === 'https:' ? '443' : '80');
-  const host = endpoint.hostname === 'localhost' || endpoint.hostname === '::1' ? '127.0.0.1' : endpoint.hostname;
+  const hostname = endpoint.hostname.replace(/^\[|\]$/g, '');
+  const host = hostname === 'localhost' || hostname === '::1' ? '127.0.0.1' : hostname;
   const cpuMoeLayers = envNumber('LLAMA_CPU_MOE_LAYERS', 32, 0);
   const loadMode = envValue('LLAMA_LOAD_MODE', 'none');
   const specType = envValue('LLAMA_SPEC_TYPE', 'none');
@@ -112,34 +110,65 @@ function launchManagedServer(options: ManagedLlmOptions) {
     }
     args.push('--mmproj', paths.mmproj);
   }
+  // The key never goes on the command line, where any local process can read
+  // it: use the key file, or else llama-server's LLAMA_API_KEY variable.
+  const childEnv: NodeJS.ProcessEnv = { ...process.env };
+  delete childEnv.LLAMA_API_KEY;
   if (options.apiKey) {
     if (existsSync(paths.apiKeyFile)) args.push('--api-key-file', paths.apiKeyFile);
-    else args.push('--api-key', options.apiKey);
+    else childEnv.LLAMA_API_KEY = options.apiKey;
   }
 
   mkdirSync(path.dirname(paths.log), { recursive: true });
-  managedLogFd = openSync(paths.log, 'a');
+  closeLog();
+  const logFd = openSync(paths.log, 'a');
+  managedLogFd = logFd;
   const child = spawn(paths.server, args, {
     cwd: path.dirname(paths.server),
+    env: childEnv,
     windowsHide: true,
-    stdio: ['ignore', managedLogFd, managedLogFd]
+    stdio: ['ignore', logFd, logFd]
   });
   managedProcess = child;
 
-  child.once('exit', () => {
+  // 'exit' never fires when the spawn itself fails, so release on 'error' too.
+  const release = () => {
     if (managedProcess === child) managedProcess = null;
-    if (managedLogFd !== null) {
-      closeSync(managedLogFd);
-      managedLogFd = null;
-    }
-  });
+    if (managedLogFd === logFd) closeLog();
+  };
+  child.once('exit', release);
+  child.once('error', release);
   return { child, logPath: paths.log };
+}
+
+function closeLog() {
+  if (managedLogFd === null) return;
+  try { closeSync(managedLogFd); } catch { /* already closed */ }
+  managedLogFd = null;
+}
+
+async function waitForReady(options: ManagedLlmOptions, timeoutMs: number, context: string) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const probe = await probeEndpoint(options);
+    if (probe.ready) return;
+    if (!probe.reachable) throw new Error(`The LLM server at ${options.baseUrl} stopped answering while ${context}.`);
+    if (probe.status !== 503) throw new Error(`LLM endpoint returned HTTP ${probe.status} while ${context}. Check LLM_API_KEY and LLM_BASE_URL.`);
+    await new Promise((resolve) => setTimeout(resolve, 750));
+  }
+  throw new Error(`The LLM server at ${options.baseUrl} was still loading after ${timeoutMs / 1000}s.`);
 }
 
 async function startAndWait(options: ManagedLlmOptions) {
   const initialProbe = await probeEndpoint(options);
   if (initialProbe.ready) return;
   if (initialProbe.reachable) {
+    // A server is already on the port. 503 means it is loading the model
+    // (started by an earlier run or by qwen:start): wait for it, don't fail.
+    if (initialProbe.status === 503) {
+      await waitForReady(options, envNumber('LLM_STARTUP_TIMEOUT_SECONDS', 180, 5) * 1000, 'loading the model');
+      return;
+    }
     throw new Error(`LLM endpoint is reachable but returned HTTP ${initialProbe.status}. Check LLM_API_KEY and LLM_BASE_URL.`);
   }
 
@@ -167,7 +196,7 @@ async function startAndWait(options: ManagedLlmOptions) {
 }
 
 export async function ensureManagedLocalLlm(options: ManagedLlmOptions) {
-  if (!isLoopbackUrl(options.baseUrl) || process.env.LLM_AUTOSTART === 'false') return;
+  if (!isLoopbackBaseUrl(options.baseUrl) || process.env.LLM_AUTOSTART === 'false') return;
   if (!startupPromise) {
     startupPromise = startAndWait(options).finally(() => {
       startupPromise = null;
@@ -180,12 +209,13 @@ export function stopManagedLocalLlm() {
   if (managedProcess && managedProcess.exitCode === null) managedProcess.kill();
   managedProcess = null;
   startupPromise = null;
+  closeLog();
 }
 
 export function getManagedLocalLlmState(baseUrl: string) {
   const paths = getManagedPaths();
   return {
-    autostart: isLoopbackUrl(baseUrl) && process.env.LLM_AUTOSTART !== 'false',
+    autostart: isLoopbackBaseUrl(baseUrl) && process.env.LLM_AUTOSTART !== 'false',
     running: Boolean(managedProcess && managedProcess.exitCode === null),
     serverPath: paths.server,
     modelPath: paths.model,

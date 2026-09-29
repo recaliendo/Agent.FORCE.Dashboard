@@ -133,6 +133,42 @@ Run `npm run qwen:start` only when you want to keep the model server running ind
 
 With the server running, `npm run qwen:verify` checks authenticated health, coherent completion, and incremental token streaming.
 
+### When Qwen is slow, silent, or showing errors
+
+Run the doctor from the dashboard folder and paste its output when asking for help. The
+report redacts keys and tokens.
+
+```powershell
+pnpm qwen:doctor              # check the server that is already running
+pnpm qwen:doctor -- --start   # start the managed server first, then stop it afterwards
+pnpm qwen:doctor -- --quick   # skip the speed and cache measurements
+pnpm qwen:doctor -- --json    # machine-readable report
+```
+
+The **Health** button in the Qwen chat panel runs the same checks and has **Copy report**.
+It checks:
+
+- that the endpoint is on this computer;
+- that the runtime files exist;
+- that the server answers and accepts the key;
+- that the context window is at least 8,192 tokens;
+- whether another request is holding the model's single slot.
+
+It then measures time to first word, prompt-reading and writing speed, and whether the
+prompt cache is reused. It also scans the runtime log for known failures: GPU out of
+memory, a model that fails to load, a port already in use, context overflow, and a
+rejected API key.
+
+| `.env` setting | Default | Meaning |
+| --- | --- | --- |
+| `LLM_QUEUE_TIMEOUT_SECONDS` | 180 | How long a request may wait for the model's single slot, because it is busy with another request or still loading, before giving up. llama.cpp sends nothing until the slot starts a request. The legacy `LLM_INFERENCE_CONNECT_TIMEOUT_SECONDS` is used only when it is larger. |
+| `LLM_INFERENCE_INACTIVITY_TIMEOUT_SECONDS` | 120 (minimum 90) | How long the stream may be completely silent. Prompt-reading progress and the server's 30-second keep-alive count as activity, so a long prompt is not cut off while it is being read. |
+| `LLM_MAX_OUTPUT_TOKENS` | 512 | The answer length limit. A cut-off answer is labelled; ask "continue" for the rest. The Records tab's Summarize, Build timeline, and Commitments & requests analyses use at least 768. |
+
+The top bar shows **Build** and a commit ID. Hover over it for the branch, whether the
+folder has local edits, and when the app was built. If the ID doesn't match the latest
+commit on `main`, the window is running an older build.
+
 The dashboard does not store chat transcripts; the persistent Agent FORCE Chat surface keeps the conversation in memory for the active project session.
 
 If npm is not on PATH in a local Codex runtime, use the bundled package manager equivalent:

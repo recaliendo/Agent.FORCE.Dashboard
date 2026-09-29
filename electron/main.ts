@@ -2,22 +2,30 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import { exec } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { ensureManagedLocalLlm, getManagedLocalLlmState, stopManagedLocalLlm } from './localLlmRuntime.js';
-import { createSseDataParser } from './sseParser.js';
+import { fetchServerProps, fitMessagesToContext, QwenError, streamChatCompletion, type QwenErrorCode } from './qwenClient.js';
+import { applyDotEnv, getQwenConfig, toClientConfig } from './qwenConfig.js';
+import { formatDoctorReport, runQwenDoctor } from './qwenDoctor.js';
 import { OfwConnection } from './ofw.js';
-import { ANALYSIS_TASKS, buildChatContext, buildGroundedPrompt, groundingBudget, isLoopbackBaseUrl, TASK_LABELS, type AnalysisTask } from './ofw-grounding.js';
+import { ANALYSIS_TASKS, buildChatContext, buildGroundedPrompt, groundingBudget, TASK_LABELS, type AnalysisTask } from './ofw-grounding.js';
+import { assertOfwDestination, containsOfwRecords, isSafeExternalUrl, isTrustedSenderUrl, isValidRequestId, sanitizeChatMessages, type ChatMessage } from './ipcGuards.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
 const allowCommands = process.env.AGENT_FORCE_ALLOW_COMMANDS === 'true';
 let ofwConnection: OfwConnection;
+const appFileUrl = pathToFileURL(path.join(__dirname, '../../dist/index.html')).href;
+const devServerUrl = isDev ? process.env.VITE_DEV_SERVER_URL : undefined;
 
-type ChatMessage = {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
-};
+/** Accept IPC only from the app's own page (see ipcGuards.isTrustedSenderUrl). */
+function trusted(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): boolean {
+  const ok = isTrustedSenderUrl(event.senderFrame?.url, appFileUrl, devServerUrl);
+  if (!ok) console.warn(`Ignored IPC from untrusted frame: ${event.senderFrame?.url ?? 'unknown'}`);
+  return ok;
+}
+const UNTRUSTED = { ok: false, error: 'Request refused: it did not come from the Agent FORCE window.' };
 
 type ActiveQwenStream = {
   controller: AbortController;
@@ -26,43 +34,10 @@ type ActiveQwenStream = {
 
 const activeQwenStreams = new Map<string, ActiveQwenStream>();
 
-function loadDotEnv() {
-  const envPath = path.resolve(process.cwd(), '.env');
-  if (!existsSync(envPath)) return;
-
-  for (const rawLine of readFileSync(envPath, 'utf8').split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith('#') || !line.includes('=')) continue;
-    const [key, ...rest] = line.split('=');
-    const name = key.trim();
-    const value = rest.join('=').trim().replace(/^['"]|['"]$/g, '');
-    if (name && process.env[name] === undefined) {
-      process.env[name] = value;
-    }
-  }
-}
-
-loadDotEnv();
-
-function getQwenConfig() {
-  const baseUrl = (process.env.LLM_BASE_URL || 'http://127.0.0.1:8080/v1').replace(/\/+$/, '');
-  const apiKey = process.env.LLM_API_KEY || process.env.LLAMA_API_KEY || '';
-  const modelName = process.env.LLM_MODEL_NAME || 'Qwen/Qwen3.6-35B-A3B';
-  const timeoutSeconds = Number(process.env.LLM_TIMEOUT_SECONDS || '5');
-  const inferenceConnectSeconds = Number(process.env.LLM_INFERENCE_CONNECT_TIMEOUT_SECONDS || '10');
-  const inferenceInactivitySeconds = Number(process.env.LLM_INFERENCE_INACTIVITY_TIMEOUT_SECONDS || '30');
-  const maxOutputTokens = Number(process.env.LLM_MAX_OUTPUT_TOKENS || '512');
-
-  return {
-    baseUrl,
-    apiKey,
-    modelName,
-    timeoutMs: Number.isFinite(timeoutSeconds) ? Math.max(1, timeoutSeconds) * 1000 : 5000,
-    inferenceConnectTimeoutMs: Number.isFinite(inferenceConnectSeconds) ? Math.max(1, inferenceConnectSeconds) * 1000 : 10000,
-    inferenceInactivityTimeoutMs: Number.isFinite(inferenceInactivitySeconds) ? Math.max(5, inferenceInactivitySeconds) * 1000 : 30000,
-    maxOutputTokens: Number.isFinite(maxOutputTokens) ? Math.min(4096, Math.max(64, Math.floor(maxOutputTokens))) : 512
-  };
-}
+// Settings and credentials come from a local .env (gitignored); real
+// environment variables win. Shared with scripts/qwen-doctor.mjs.
+const envPath = path.resolve(process.cwd(), '.env');
+if (existsSync(envPath)) applyDotEnv(readFileSync(envPath, 'utf8'));
 
 function assertSafeLlmBaseUrl(baseUrl: string) {
   const parsed = new URL(baseUrl);
@@ -137,34 +112,6 @@ async function qwenFetch(
   }
 }
 
-async function qwenChatCompletion(
-  messages: ChatMessage[],
-  stream = false,
-  controller?: AbortController,
-  onRuntimeReady?: () => void
-) {
-  const config = getQwenConfig();
-  if (controller?.signal.aborted) throw new Error('CANCELLED: The inference request was cancelled.');
-  await ensureManagedLocalLlm(config);
-  if (controller?.signal.aborted) throw new Error('CANCELLED: The inference request was cancelled.');
-  onRuntimeReady?.();
-  const response = await qwenFetch('chat/completions', {
-    method: 'POST',
-    body: JSON.stringify({
-      model: config.modelName,
-      messages,
-      temperature: 0.2,
-      max_tokens: config.maxOutputTokens,
-      chat_template_kwargs: { enable_thinking: false },
-      stream
-    })
-  }, {
-    controller,
-    connectTimeoutMs: config.inferenceConnectTimeoutMs
-  });
-  return response;
-}
-
 function createWindow() {
   const mainWindow = new BrowserWindow({
     width: 1540,
@@ -187,6 +134,15 @@ function createWindow() {
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
     console.error(`Renderer process exited: ${details.reason} (${details.exitCode})`);
   });
+  // The window only ever shows the app. Links open in the system browser;
+  // any other navigation or new window is refused.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (isSafeExternalUrl(url)) void shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (!isTrustedSenderUrl(url, appFileUrl, devServerUrl)) event.preventDefault();
+  });
   if (isDev && process.env.VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
     mainWindow.webContents.openDevTools({ mode: 'detach' });
@@ -195,17 +151,9 @@ function createWindow() {
   }
 }
 
-function isSafeUrl(target: string) {
-  try {
-    const parsed = new URL(target);
-    return ['https:', 'http:', 'mailto:'].includes(parsed.protocol);
-  } catch {
-    return false;
-  }
-}
-
-ipcMain.handle('agent-force:open-external', async (_event, target: string) => {
-  if (!isSafeUrl(target)) {
+ipcMain.handle('agent-force:open-external', async (event, target: unknown) => {
+  if (!trusted(event)) return UNTRUSTED;
+  if (!isSafeExternalUrl(target)) {
     return { ok: false, error: 'Only http, https, and mailto links are allowed.' };
   }
 
@@ -213,8 +161,9 @@ ipcMain.handle('agent-force:open-external', async (_event, target: string) => {
   return { ok: true };
 });
 
-ipcMain.handle('agent-force:reveal-path', async (_event, target: string) => {
-  if (!target || target.trim().length < 2) {
+ipcMain.handle('agent-force:reveal-path', async (event, target: unknown) => {
+  if (!trusted(event)) return UNTRUSTED;
+  if (typeof target !== 'string' || target.trim().length < 2 || target.length > 1024) {
     return { ok: false, error: 'No local path configured for this project.' };
   }
 
@@ -226,7 +175,8 @@ ipcMain.handle('agent-force:reveal-path', async (_event, target: string) => {
   return { ok: true };
 });
 
-ipcMain.handle('agent-force:run-command', async (_event, command: string) => {
+ipcMain.handle('agent-force:run-command', async (event, command: unknown) => {
+  if (!trusted(event)) return UNTRUSTED;
   if (!allowCommands) {
     return {
       ok: false,
@@ -234,7 +184,7 @@ ipcMain.handle('agent-force:run-command', async (_event, command: string) => {
     };
   }
 
-  if (!command || command.length > 500) {
+  if (typeof command !== 'string' || !command.trim() || command.length > 500) {
     return { ok: false, error: 'Command is empty or too long.' };
   }
 
@@ -250,9 +200,10 @@ ipcMain.handle('agent-force:run-command', async (_event, command: string) => {
   });
 });
 
-ipcMain.handle('agent-force:get-platform', async () => process.platform);
+ipcMain.handle('agent-force:get-platform', async (event) => (trusted(event) ? process.platform : 'unknown'));
 
-ipcMain.handle('agent-force:qwen-config', async () => {
+ipcMain.handle('agent-force:qwen-config', async (event) => {
+  if (!trusted(event)) return UNTRUSTED;
   const config = getQwenConfig();
   return {
     ok: true,
@@ -264,7 +215,8 @@ ipcMain.handle('agent-force:qwen-config', async () => {
   };
 });
 
-ipcMain.handle('agent-force:qwen-health', async () => {
+ipcMain.handle('agent-force:qwen-health', async (event) => {
+  if (!trusted(event)) return UNTRUSTED;
   try {
     await qwenFetch('models', { method: 'GET' });
     const config = getQwenConfig();
@@ -274,99 +226,122 @@ ipcMain.handle('agent-force:qwen-health', async () => {
   }
 });
 
-ipcMain.handle('agent-force:qwen-chat', async (_event, messages: ChatMessage[]) => {
-  try {
-    const response = await qwenChatCompletion(messages, false);
-    const payload = await response.json() as { choices?: { message?: { content?: unknown } }[] };
-    const content = payload?.choices?.[0]?.message?.content;
-    if (typeof content !== 'string') {
-      return { ok: false, error: 'LLM response did not include assistant content.' };
-    }
-    return { ok: true, content };
-  } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : 'Qwen chat request failed.' };
-  }
+// Full diagnosis with measurements; the renderer shows it and can copy it.
+ipcMain.handle('agent-force:qwen-doctor', async (event, appBuild?: unknown) => {
+  if (!trusted(event)) return UNTRUSTED;
+  const config = getQwenConfig();
+  const report = await runQwenDoctor({
+    client: toClientConfig(config),
+    runtime: getManagedLocalLlmState(config.baseUrl),
+    ensureRuntime: () => ensureManagedLocalLlm(config)
+  });
+  return { ...report, text: formatDoctorReport(report, typeof appBuild === 'string' ? appBuild.slice(0, 120) : undefined) };
 });
+
+/** llama.cpp's context size, cached briefly (it only changes when the server restarts). */
+let contextSizeCache: { baseUrl: string; at: number; nCtx?: number } | null = null;
+async function contextSize(): Promise<number | undefined> {
+  const config = getQwenConfig();
+  if (contextSizeCache && contextSizeCache.baseUrl === config.baseUrl && Date.now() - contextSizeCache.at < 60_000) return contextSizeCache.nCtx;
+  const props = await fetchServerProps(config);
+  // Remember only a real answer; a failed lookup is retried on the next request.
+  contextSizeCache = props?.nCtx ? { baseUrl: config.baseUrl, at: Date.now(), nCtx: props.nCtx } : null;
+  return props?.nCtx;
+}
 
 /**
  * Stream a chat completion to the renderer on `agent-force:qwen-stream:<id>`.
- * Shared by the Qwen chat panel and grounded OFW analysis.
+ * Shared by the Qwen chat panel and grounded OFW analysis. Events:
+ * phase (queued | prompt-evaluating) · progress · notice · token · stats ·
+ * truncated · done | error{code}.
  */
-async function streamQwenToSender(sender: Electron.WebContents, requestId: string, messages: ChatMessage[]) {
-  const event = { sender };
+/**
+ * Register a cancellable request: `agent-force:qwen-cancel` and a closed
+ * window both abort it. Returns the controller and a release function.
+ */
+function registerStream(sender: Electron.WebContents, requestId: string) {
   const controller = new AbortController();
-  const stream: ActiveQwenStream = { controller, senderId: event.sender.id };
-  const existing = activeQwenStreams.get(requestId);
-  if (existing) existing.controller.abort();
+  const stream: ActiveQwenStream = { controller, senderId: sender.id };
+  activeQwenStreams.get(requestId)?.controller.abort();
   activeQwenStreams.set(requestId, stream);
-  const config = getQwenConfig();
-  let inactivityTimedOut = false;
-  let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
-
-  const resetInactivityTimeout = () => {
-    if (inactivityTimer) clearTimeout(inactivityTimer);
-    inactivityTimer = setTimeout(() => {
-      inactivityTimedOut = true;
-      controller.abort();
-    }, config.inferenceInactivityTimeoutMs);
+  // A window that closes mid-answer must free llama.cpp's only slot.
+  const onGone = () => controller.abort();
+  sender.once('destroyed', onGone);
+  return {
+    controller,
+    release: () => {
+      sender.removeListener('destroyed', onGone);
+      if (activeQwenStreams.get(requestId) === stream) activeQwenStreams.delete(requestId);
+    }
   };
+}
+
+async function streamQwenToSender(sender: Electron.WebContents, requestId: string, messages: ChatMessage[], options: { maxTokens?: number; controller?: AbortController } = {}) {
+  const channel = `agent-force:qwen-stream:${requestId}`;
+  const send = (payload: Record<string, unknown>) => { if (!sender.isDestroyed()) sender.send(channel, payload); };
+  const owned = options.controller ? null : registerStream(sender, requestId);
+  const controller = options.controller ?? owned!.controller;
+  const config = getQwenConfig();
+  const maxTokens = options.maxTokens ?? config.maxOutputTokens;
 
   try {
-    const response = await qwenChatCompletion(messages, true, controller, () => {
-      if (!event.sender.isDestroyed()) {
-        event.sender.send(`agent-force:qwen-stream:${requestId}`, { type: 'phase', phase: 'prompt-evaluating' });
+    assertSafeLlmBaseUrl(config.baseUrl);
+    // Defence in depth: whatever the renderer did, OFW excerpts only go to a local model.
+    if (containsOfwRecords(messages)) assertOfwDestination(config.baseUrl, process.env.OFW_ALLOW_REMOTE_LLM === 'true');
+    try {
+      await ensureManagedLocalLlm(config);
+    } catch (error) {
+      throw new QwenError('RUNTIME_FAILED', error instanceof Error ? error.message : 'The local model runtime did not start.');
+    }
+    if (controller.signal.aborted) throw new QwenError('CANCELLED', 'The inference request was cancelled.');
+
+    // Never send a prompt the server will reject: fit it to the real context
+    // window, dropping the oldest conversation first.
+    let outgoing = messages;
+    const nCtx = await contextSize();
+    if (nCtx) {
+      const fitted = fitMessagesToContext(messages, nCtx - maxTokens - 64);
+      outgoing = fitted.messages;
+      if (fitted.droppedMessages || fitted.trimmedChars) {
+        send({
+          type: 'notice',
+          message: fitted.droppedMessages
+            ? `Left out the ${fitted.droppedMessages} oldest message${fitted.droppedMessages === 1 ? '' : 's'} of this conversation to fit the model's ${nCtx.toLocaleString()}-token context.`
+            : `Shortened the request by ${fitted.trimmedChars.toLocaleString()} characters to fit the model's ${nCtx.toLocaleString()}-token context.`
+        });
       }
-    });
-    const reader = (response.body as any)?.getReader?.();
-    if (!reader) {
-      throw new Error('LLM endpoint did not provide a readable stream.');
     }
 
-    let sawDone = false;
-    const parser = createSseDataParser((data) => {
-      if (data === '[DONE]') {
-        sawDone = true;
-        return;
-      }
-      const chunk = JSON.parse(data);
-      const token = chunk?.choices?.[0]?.delta?.content;
-      if (typeof token === 'string' && token) {
-        resetInactivityTimeout();
-        event.sender.send(`agent-force:qwen-stream:${requestId}`, { type: 'token', token });
-      }
+    await streamChatCompletion(toClientConfig(config), outgoing, {
+      signal: controller.signal,
+      maxTokens,
+      onEvent: (event) => send(event as unknown as Record<string, unknown>)
     });
-    resetInactivityTimeout();
-
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      parser.push(value);
-      if (sawDone) break;
-    }
-    parser.finish();
-
-    event.sender.send(`agent-force:qwen-stream:${requestId}`, { type: 'done' });
+    send({ type: 'done' });
     return { ok: true };
   } catch (error) {
-    const message = inactivityTimedOut
-      ? `INACTIVITY_TIMEOUT: No visible token arrived for ${config.inferenceInactivityTimeoutMs / 1000}s.`
-      : error instanceof SyntaxError
-        ? `PARSE_ERROR: ${error.message}`
-        : error instanceof Error
-          ? error.message
-          : 'Qwen stream request failed.';
-    if (!event.sender.isDestroyed()) {
-      event.sender.send(`agent-force:qwen-stream:${requestId}`, { type: 'error', error: message });
-    }
+    const message = error instanceof Error ? error.message : 'Qwen stream request failed.';
+    const code: QwenErrorCode | 'REMOTE_MODEL_BLOCKED' = error instanceof QwenError ? error.code : message.startsWith('REMOTE_MODEL_BLOCKED:') ? 'REMOTE_MODEL_BLOCKED' : 'HTTP_ERROR';
+    send({ type: 'error', code, error: message });
     return { ok: false, error: message };
   } finally {
-    if (inactivityTimer) clearTimeout(inactivityTimer);
-    if (activeQwenStreams.get(requestId) === stream) activeQwenStreams.delete(requestId);
+    owned?.release();
   }
 }
 
-ipcMain.handle('agent-force:qwen-stream-chat', async (event, requestId: string, messages: ChatMessage[]) =>
-  streamQwenToSender(event.sender, requestId, messages));
+ipcMain.handle('agent-force:qwen-stream-chat', async (event, requestId: unknown, messages: unknown) => {
+  if (!trusted(event)) return UNTRUSTED;
+  if (!isValidRequestId(requestId)) return { ok: false, error: 'Invalid request id.' };
+  let checked: ChatMessage[];
+  try {
+    checked = sanitizeChatMessages(messages);
+  } catch (error) {
+    const message = `HTTP_ERROR: ${error instanceof Error ? error.message : 'Invalid chat request.'}`;
+    event.sender.send(`agent-force:qwen-stream:${requestId}`, { type: 'error', code: 'HTTP_ERROR', error: message });
+    return { ok: false, error: message };
+  }
+  return streamQwenToSender(event.sender, requestId, checked);
+});
 
 function getOfwConnection() {
   if (!ofwConnection) {
@@ -380,10 +355,7 @@ function getOfwConnection() {
  * this machine. OFW_ALLOW_REMOTE_LLM=true is the explicit, documented opt-out.
  */
 function assertLocalModelForOfw() {
-  const { baseUrl } = getQwenConfig();
-  if (!isLoopbackBaseUrl(baseUrl) && process.env.OFW_ALLOW_REMOTE_LLM !== 'true') {
-    throw new Error(`REMOTE_MODEL_BLOCKED: OFW records are only sent to a model on this computer, but LLM_BASE_URL points to ${new URL(baseUrl).host}. Use the local Qwen server (http://127.0.0.1:8080/v1), or set OFW_ALLOW_REMOTE_LLM=true if you accept sending records to that provider.`);
-  }
+  assertOfwDestination(getQwenConfig().baseUrl, process.env.OFW_ALLOW_REMOTE_LLM === 'true');
 }
 
 type AnalyzeRequest = { task?: unknown; query?: unknown; folderId?: unknown; since?: unknown; until?: unknown };
@@ -391,16 +363,28 @@ type AnalyzeRequest = { task?: unknown; query?: unknown; folderId?: unknown; sin
 // Grounded analysis: retrieve the relevant messages, then have the local model
 // answer / summarize / build a timeline / extract commitments from those
 // excerpts only, citing message numbers. Events: sources → phase → token… → done | error.
-ipcMain.handle('agent-force:ofw-analyze', async (event, requestId: string, request: AnalyzeRequest) => {
+ipcMain.handle('agent-force:ofw-analyze', async (event, requestId: unknown, request: AnalyzeRequest) => {
+  if (!trusted(event)) return UNTRUSTED;
+  if (!isValidRequestId(requestId)) return { ok: false, error: 'Invalid request id.' };
   const channel = `agent-force:qwen-stream:${requestId}`;
   const send = (payload: Record<string, unknown>) => { if (!event.sender.isDestroyed()) event.sender.send(channel, payload); };
+  // Registered before retrieval, so Stop works while messages are still being searched.
+  const { controller, release } = registerStream(event.sender, requestId);
+  const cancelled = () => new QwenError('CANCELLED', 'The analysis was cancelled.');
   try {
     const task = (ANALYSIS_TASKS as readonly unknown[]).includes(request?.task) ? request.task as AnalysisTask : 'answer';
     const question = typeof request?.query === 'string' ? request.query.trim().slice(0, 500) : '';
     if (task === 'answer' && !question) throw new Error('Type a question to answer.');
     assertLocalModelForOfw();
     send({ type: 'phase', phase: 'retrieving' });
-    const budget = groundingBudget(process.env);
+    const config = getQwenConfig();
+    const maxTokens = task === 'answer' ? config.maxOutputTokens : Math.max(config.maxOutputTokens, 768);
+    const nCtx = await contextSize();
+    const envBudget = groundingBudget(process.env);
+    // Leave room for the instructions (~600 tokens) and the answer; 3.2 chars/token is conservative.
+    const budget = nCtx
+      ? { ...envBudget, maxChars: Math.max(1500, Math.min(envBudget.maxChars, Math.floor((nCtx - maxTokens - 900) * 3.2))) }
+      : envBudget;
     const payload = await getOfwConnection().request('nlsearch', {
       query: question || 'messages',
       mode: 'natural',
@@ -410,6 +394,7 @@ ipcMain.handle('agent-force:ofw-analyze', async (event, requestId: string, reque
       limit: Math.min(50, Math.max(budget.maxMessages, 10)),
       includeBody: true
     }) as Record<string, unknown>;
+    if (controller.signal.aborted) throw cancelled();
     if (typeof payload.result === 'string') {
       throw new Error(`${String(payload.reason ?? 'The search could not be verified.')} ${String(payload.remedy ?? '')}`.trim());
     }
@@ -420,17 +405,20 @@ ipcMain.handle('agent-force:ofw-analyze', async (event, requestId: string, reque
       send({ type: 'done' });
       return { ok: true };
     }
-    return await streamQwenToSender(event.sender, requestId, grounded.messages);
+    return await streamQwenToSender(event.sender, requestId, grounded.messages, { maxTokens, controller });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'OFW analysis failed.';
-    send({ type: 'error', error: message });
+    send({ type: 'error', ...(error instanceof QwenError ? { code: error.code } : {}), error: message });
     return { ok: false, error: message };
+  } finally {
+    release();
   }
 });
 
 // Retrieval for the Qwen chat panel: the few messages relevant to this
 // question, as cited excerpts — instead of the whole record.
-ipcMain.handle('agent-force:ofw-chat-context', async (_event, question: unknown) => {
+ipcMain.handle('agent-force:ofw-chat-context', async (event, question: unknown) => {
+  if (!trusted(event)) return UNTRUSTED;
   try {
     const q = typeof question === 'string' ? question.trim().slice(0, 500) : '';
     if (!q) return { ok: false, error: 'No question.' };
@@ -445,12 +433,14 @@ ipcMain.handle('agent-force:ofw-chat-context', async (_event, question: unknown)
   }
 });
 
-ipcMain.on('agent-force:qwen-cancel', (event, requestId: string) => {
+ipcMain.on('agent-force:qwen-cancel', (event, requestId: unknown) => {
+  if (!trusted(event) || !isValidRequestId(requestId)) return;
   const stream = activeQwenStreams.get(requestId);
   if (stream?.senderId === event.sender.id) stream.controller.abort();
 });
 
-ipcMain.handle('agent-force:ofw', async (_event, action: unknown, input: unknown) => {
+ipcMain.handle('agent-force:ofw', async (event, action: unknown, input: unknown) => {
+  if (!trusted(event)) return UNTRUSTED;
   try {
     return { ok: true, data: await getOfwConnection().request(action, input) };
   } catch (error) {

@@ -1,6 +1,6 @@
 import { Fragment, type ReactNode } from 'react';
 import { Copy, Quote, Square } from 'lucide-react';
-import type { OfwAnalysisTask, OfwGroundingSource } from '../types';
+import type { OfwAnalysisTask, OfwGroundingSource, QwenStats } from '../types';
 
 /**
  * Natural-language views for the OFW panel: how a question was read, ranked
@@ -148,8 +148,12 @@ export interface AnalysisState {
   task: OfwAnalysisTask;
   label: string;
   question: string;
-  phase: 'retrieving' | 'thinking' | 'streaming' | 'done' | 'error' | 'cancelled';
+  phase: 'retrieving' | 'queued' | 'thinking' | 'streaming' | 'done' | 'error' | 'cancelled';
   text: string;
+  progress?: { processed: number; total: number; cached: number };
+  notice?: string;
+  truncatedAt?: number;
+  stats?: QwenStats;
   sources: OfwGroundingSource[];
   caveats: string[];
   error?: string;
@@ -158,6 +162,7 @@ export interface AnalysisState {
 
 const PHASE_COPY: Record<AnalysisState['phase'], string> = {
   retrieving: 'Finding the relevant messages…',
+  queued: 'Waiting for local Qwen to finish another request…',
   thinking: 'Local Qwen is reading the excerpts…',
   streaming: 'Writing…',
   done: 'Done',
@@ -217,7 +222,7 @@ export function AnalysisView({ state, onCancel, onView }: {
   const known = new Set(state.sources.map((s) => s.messageId));
   const cited = new Set(Array.from(state.text.matchAll(/#(\d+)/g), (m) => Number(m[1])));
   const uncited = state.phase === 'done' && state.sources.length > 0 && ![...cited].some((id) => known.has(id));
-  const running = state.phase === 'retrieving' || state.phase === 'thinking' || state.phase === 'streaming';
+  const running = state.phase === 'retrieving' || state.phase === 'queued' || state.phase === 'thinking' || state.phase === 'streaming';
   const jump = (id: number) => {
     const el = document.getElementById(`ofw-src-${id}`);
     if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('ofw-flash'); setTimeout(() => el.classList.remove('ofw-flash'), 1200); }
@@ -230,7 +235,24 @@ export function AnalysisView({ state, onCancel, onView }: {
         {running && <button type="button" onClick={onCancel}><Square size={14} /> Stop</button>}
       </div>
       {state.error && <p className="ofw-warning" role="alert">{state.error}</p>}
+      {state.progress && state.progress.total > 0 && state.phase === 'thinking' && (
+        <div className="qwen-progress">
+          <div className="bar-track" role="progressbar" aria-label="Reading the excerpts" aria-valuemin={0} aria-valuemax={state.progress.total} aria-valuenow={state.progress.processed}>
+            <span style={{ width: `${Math.min(100, Math.round((state.progress.processed / state.progress.total) * 100))}%` }} />
+          </div>
+          <small>Reading {state.progress.processed.toLocaleString()} of {state.progress.total.toLocaleString()} tokens{state.progress.cached ? ` · ${state.progress.cached.toLocaleString()} reused from cache` : ''}</small>
+        </div>
+      )}
+      {state.notice && <p className="ofw-help">{state.notice}</p>}
       {state.text && <div className="ofw-nl-answer"><CitedText text={state.text} known={known} onCite={jump} /></div>}
+      {state.truncatedAt && <p className="ofw-help">The answer stopped at the {state.truncatedAt}-token limit; narrow the question for a complete answer.</p>}
+      {state.phase === 'done' && state.stats?.generatedTokens !== undefined && (
+        <p className="ofw-help">
+          Local Qwen read {((state.stats.promptTokens ?? 0) + (state.stats.cachedTokens ?? 0)).toLocaleString()} tokens
+          {state.stats.promptMs !== undefined ? ` in ${(state.stats.promptMs / 1000).toFixed(1)}s` : ''} and wrote {state.stats.generatedTokens.toLocaleString()}
+          {state.stats.generationTokensPerSecond ? ` at ${Math.round(state.stats.generationTokensPerSecond)} tokens/s` : ''}.
+        </p>
+      )}
       {uncited && <p className="ofw-warning">This answer does not cite any message, so treat it as unsupported. Check the sources below directly.</p>}
       {state.caveats.length > 0 && <p className="ofw-help">Limits: {state.caveats.join(' ')}</p>}
       {state.sources.length > 0 && (

@@ -367,7 +367,7 @@ export const seedProjects: AgentProject[] = [
       'No injury status or consensus trend is shown unless verified in that week’s data.'
     ],
     currentBlockers: [
-      'The weekly refresh is still manual: no scheduled job that updates src/data/rankings.ts is in the repository.'
+      'The scheduled refresh cannot read ranking sources yet: the cloud environment\u2019s network policy blocks fantasypros.com, si.com, and draftsharks.com, so each run stops without pushing.'
     ],
     repository: {
       provider: 'github',
@@ -451,7 +451,8 @@ export const seedProjects: AgentProject[] = [
     ],
     nextActions: [
       'Confirm oneontafantasy.live is published from this repository’s Lovable project.',
-      'Schedule the Tuesday 8:00 AM ET refresh that rewrites only src/data/rankings.ts.',
+      'Allow fantasypros.com and si.com in the cloud environment\u2019s Network access so the Tuesday refresh can read sources.',
+      'Merge the rankings data guardrail test (oneonta-analytics-hub PR #1) so the refresh gate lives on main.',
       'Add the league’s exact rushing, receiving, long-play, and D/ST scoring rules to the scoring lens.',
       'Refresh this dashboard’s Rankings snapshot (src/data/oneontaRankings.ts) after each weekly update.'
     ],
@@ -463,7 +464,7 @@ export const seedProjects: AgentProject[] = [
         origin: 'Claude Code',
         role: 'Weekly rankings data update',
         status: 'Needs Configuration',
-        description: 'Rewrites src/data/rankings.ts each Tuesday by 8:00 AM ET: week, updatedAt, and the QB, RB, WR, TE, K, D/ST, and FLEX lists, reordered for league scoring. Not yet scheduled.',
+        description: 'Claude Code routine, Tuesdays 7:23 AM ET (Sept\u2013Jan): rewrites only src/data/rankings.ts (week, updatedAt, and the QB, RB, WR, TE, K, D/ST, and FLEX lists, with QBs reordered for 6-point passing TDs), passes the data guardrail and build, then pushes to main. It stops without pushing if it cannot read current sources.',
         tags: ['Weekly', 'Data module', 'Tuesday 8 AM ET'],
         repoUrl: 'https://github.com/recaliendo/oneonta-analytics-hub',
         launchActions: []

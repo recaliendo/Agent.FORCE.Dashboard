@@ -8,10 +8,11 @@
     2. Copies your local, untracked settings (.env, ofw.local.json) from an older
        copy of the dashboard, if one is found and this clone has none.
     3. Installs dependencies and builds.
-    4. Points the "Agent FORCE Dashboard" desktop shortcut at this clone's launcher,
-       so the shortcut stops building the old, out-of-date folder.
+    4. Turns each older copy's launcher into a forwarder to this clone (original kept
+       as .bak) and re-points Agent FORCE shortcuts, including ones that run the
+       launcher through cmd.exe or Windows Terminal, so nothing builds the old folder.
 
-  The old folder is left untouched.
+  Nothing else in the old folder is changed.
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File scripts\repair-install.ps1
@@ -107,6 +108,8 @@ if ($OldPath) {
 } else {
   $candidates = @(Find-OldCopies)
 }
+$legacy = Join-Path $env:USERPROFILE 'OneDrive\Documents\Agent.FORCE.Dashboard'
+if ((Test-DashboardFolder $legacy) -and ($candidates -notcontains $legacy) -and ((Resolve-Path -LiteralPath $legacy).Path -ne (Resolve-Path -LiteralPath $repoRoot).Path)) { $candidates += $legacy }
 if (-not $candidates.Count) { Note 'No older copy found; nothing to carry over.' }
 foreach ($old in $candidates) { Note "Found older copy: $old" }
 foreach ($file in @('.env', 'ofw.local.json')) {
@@ -124,34 +127,66 @@ Invoke-Pnpm $pnpm @('install', '--frozen-lockfile')
 Invoke-Pnpm $pnpm @('run', 'build')
 Note 'Build succeeded.'
 
-# 4. Desktop shortcut --------------------------------------------------------
-Step 'Updating the desktop shortcut'
+# 4. Old launchers and shortcuts ---------------------------------------------
+Step 'Pointing every launcher and shortcut at this copy'
 $launcher = Join-Path $repoRoot 'launch-agent-force-dashboard.cmd'
-$desktop = [Environment]::GetFolderPath('Desktop')
+$icon = Join-Path $repoRoot 'assets\agent-force-command-icon.ico'
+
+# An older copy's launcher may cd into its own (stale) folder, so any shortcut or
+# terminal profile that still runs it would keep failing. Replace it with a
+# forwarder to this copy, keeping the original beside it as .bak.
+foreach ($old in $candidates) {
+  $oldLauncher = Join-Path $old 'launch-agent-force-dashboard.cmd'
+  if (-not (Test-Path -LiteralPath $oldLauncher)) { continue }
+  if ((Get-Content -LiteralPath $oldLauncher -Raw) -match [regex]::Escape($launcher)) { Note "$oldLauncher already forwards here."; continue }
+  Copy-Item -LiteralPath $oldLauncher -Destination "$oldLauncher.bak" -Force
+  $forwarder = "@echo off`r`nrem Forwarded by scripts\repair-install.ps1; the original is beside this file as .bak.`r`ncall `"$launcher`" %*`r`n"
+  [IO.File]::WriteAllText($oldLauncher, $forwarder, [Text.Encoding]::ASCII)
+  Note "Forwarded $oldLauncher -> $launcher (original saved as .bak)"
+}
+
+# Shortcuts may run the launcher directly or through cmd.exe / Windows Terminal,
+# so match the launcher name in the target or the arguments.
 $shell = New-Object -ComObject WScript.Shell
+$folders = @(
+  [Environment]::GetFolderPath('Desktop'),
+  [Environment]::GetFolderPath('CommonDesktopDirectory'),
+  (Join-Path $env:USERPROFILE 'Desktop'),
+  (Join-Path $env:USERPROFILE 'OneDrive\Desktop'),
+  [Environment]::GetFolderPath('Programs'),
+  (Join-Path $env:APPDATA 'Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar')
+) | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -Unique
 $updated = @()
-foreach ($lnk in Get-ChildItem -LiteralPath $desktop -Filter '*.lnk' -ErrorAction SilentlyContinue) {
-  $shortcut = $shell.CreateShortcut($lnk.FullName)
-  if ($shortcut.TargetPath -match 'launch-agent-force-dashboard\.cmd$' -and $shortcut.TargetPath -ne $launcher) {
-    Note "Re-pointing $($lnk.Name) (was $($shortcut.TargetPath))"
-    $shortcut.TargetPath = $launcher
-    $shortcut.WorkingDirectory = $repoRoot
-    $shortcut.IconLocation = Join-Path $repoRoot 'assets\agent-force-command-icon.ico'
-    $shortcut.Save()
-    $updated += $lnk.FullName
+foreach ($folder in $folders) {
+  foreach ($lnk in Get-ChildItem -LiteralPath $folder -Filter '*.lnk' -Recurse -ErrorAction SilentlyContinue) {
+    $shortcut = $shell.CreateShortcut($lnk.FullName)
+    $runs = "$($shortcut.TargetPath) $($shortcut.Arguments)"
+    if ($runs -notmatch 'launch-agent-force-dashboard\.cmd' -and $lnk.BaseName -notmatch '^Agent ?FORCE') { continue }
+    if ($shortcut.TargetPath -eq $launcher) { $updated += $lnk.FullName; continue }
+    try {
+      Note "Re-pointing $($lnk.FullName) (was: $runs)"
+      $shortcut.TargetPath = $launcher
+      $shortcut.Arguments = ''
+      $shortcut.WorkingDirectory = $repoRoot
+      $shortcut.IconLocation = $icon
+      $shortcut.Save()
+      $updated += $lnk.FullName
+    } catch {
+      Note "Could not update $($lnk.FullName): $($_.Exception.Message). The forwarded launcher still covers it."
+    }
   }
 }
 if (-not $updated.Count) {
-  $path = Join-Path $desktop 'Agent FORCE Dashboard.lnk'
+  $path = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Agent FORCE Dashboard.lnk'
   $shortcut = $shell.CreateShortcut($path)
   $shortcut.TargetPath = $launcher
   $shortcut.WorkingDirectory = $repoRoot
-  $shortcut.IconLocation = Join-Path $repoRoot 'assets\agent-force-command-icon.ico'
+  $shortcut.IconLocation = $icon
   $shortcut.Save()
   Note "Created $path"
 }
 
 Step 'Done'
 Note "Agent FORCE Dashboard now runs from: $repoRoot"
-if ($candidates.Count) { Note 'Your older copy was not changed. Delete it once you are happy with this one.' }
+if ($candidates.Count) { Note 'Older copies now forward to this one. Delete them once you are happy with it.' }
 if (-not $NoLaunch) { Start-Process -FilePath $launcher -WorkingDirectory $repoRoot }

@@ -188,7 +188,23 @@ The local launcher script is:
 launch-agent-force-dashboard.cmd
 ```
 
-It rebuilds the desktop bundle before opening Electron so stale build output does not create a blank window.
+It rebuilds the desktop bundle from the folder it lives in, then opens Electron, so stale build
+output does not create a blank window. It used to `cd` into a fixed OneDrive path, which meant a
+desktop shortcut kept building that folder even after the code was pulled somewhere else.
+
+## Repair a broken install
+
+If the launcher reports a missing file (for example `Cannot find module './OfwPanel'`), the folder
+it builds is an out-of-date copy. Clone a fresh copy outside OneDrive and run the repair script:
+
+```powershell
+git clone https://github.com/recaliendo/Agent.FORCE.Dashboard "$env:USERPROFILE\AgentFORCE\Agent.FORCE.Dashboard"
+powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\AgentFORCE\Agent.FORCE.Dashboard\scripts\repair-install.ps1"
+```
+
+The script updates the clone to `origin/main`, copies `.env` and `ofw.local.json` from an older copy
+it finds (or one passed with `-OldPath`), installs, builds, re-points the desktop shortcut at the new
+launcher, and opens the app. The older folder is left untouched.
 
 ## Command Launch Safety
 

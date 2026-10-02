@@ -203,8 +203,10 @@ powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\AgentFORCE\Agent.FORC
 ```
 
 The script updates the clone to `origin/main`, copies `.env` and `ofw.local.json` from an older copy
-it finds (or one passed with `-OldPath`), installs, builds, re-points the desktop shortcut at the new
-launcher, and opens the app. The older folder is left untouched.
+it finds (or one passed with `-OldPath`), installs, and builds. It then turns each older copy's
+launcher into a forwarder to the new one (keeping the original as `.bak`) and re-points Agent FORCE
+shortcuts, including ones that run the launcher through `cmd.exe` or Windows Terminal, before opening
+the app. Running it again is safe.
 
 ## Command Launch Safety
 

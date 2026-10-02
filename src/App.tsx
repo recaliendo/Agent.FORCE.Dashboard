@@ -34,6 +34,7 @@ import { seedProjects } from './data/seedProjects';
 import { CouncilCenter, type CouncilCenterView } from './components/CouncilCenter';
 import { QwenChatPanel } from './components/QwenChatPanel';
 import { OfwPanel } from './OfwPanel';
+import { OneontaRankingsPanel } from './components/OneontaRankingsPanel';
 import { ActionCard, Badge, EmptyState, ListRow, StatTile, Tabs } from './components/ui/Primitives';
 import { generateCouncilRun, summarizeCouncilRun } from './council/councilEngine';
 import { safeReadCouncilRuns, safeWriteCouncilRuns } from './council/councilStorage';
@@ -868,7 +869,7 @@ function ProjectCockpit({ project, onBack, onSwitchProject, onLaunch, consoleLin
           }}
         />
 
-        <CockpitTabs activeTab={activeTab} onChange={(tab) => { setActiveTab(tab); setDrawer(null); }} badges={tabBadges} hasRecords={Boolean(project.recordsWorkspace)} />
+        <CockpitTabs activeTab={activeTab} onChange={(tab) => { setActiveTab(tab); setDrawer(null); }} badges={tabBadges} recordsLabel={project.recordsWorkspace === 'oneonta-rankings' ? 'Rankings' : project.recordsWorkspace ? tabLabel('records') : null} />
 
         <section
           id={`project-cockpit-workflows-${activeTab}`}
@@ -877,6 +878,9 @@ function ProjectCockpit({ project, onBack, onSwitchProject, onLaunch, consoleLin
           aria-labelledby={`project-cockpit-workflows-tab-${activeTab}`}
         >
           {activeTab === 'records' && project.recordsWorkspace === 'ofw' && <OfwPanel />}
+          {activeTab === 'records' && project.recordsWorkspace === 'oneonta-rankings' && (
+            <OneontaRankingsPanel project={project} onLaunch={onLaunch} />
+          )}
 
           {activeTab === 'overview' && (
             <OverviewTab
@@ -1122,10 +1126,10 @@ function ProjectCommandHeader({
   );
 }
 
-function CockpitTabs({ activeTab, onChange, badges, hasRecords }: { activeTab: CockpitTab; onChange: (tab: CockpitTab) => void; badges: CockpitTabBadgeMap; hasRecords: boolean }) {
+function CockpitTabs({ activeTab, onChange, badges, recordsLabel }: { activeTab: CockpitTab; onChange: (tab: CockpitTab) => void; badges: CockpitTabBadgeMap; recordsLabel: string | null }) {
   const tabs: { id: CockpitTab; label: string; icon: ReactNode; badge?: number }[] = [
     { id: 'overview', label: tabLabel('overview'), icon: <LayoutDashboard size={15} /> },
-    ...(hasRecords ? [{ id: 'records' as CockpitTab, label: tabLabel('records'), icon: <FileSearch size={15} /> }] : []),
+    ...(recordsLabel ? [{ id: 'records' as CockpitTab, label: recordsLabel, icon: <FileSearch size={15} /> }] : []),
     { id: 'agents', label: tabLabel('agents'), icon: <Bot size={15} />, badge: badges.agents },
     { id: 'connectors', label: tabLabel('connectors'), icon: <ShieldCheck size={15} />, badge: badges.connectors },
     { id: 'daily_report', label: tabLabel('daily_report'), icon: <FileText size={15} />, badge: badges.daily_report },

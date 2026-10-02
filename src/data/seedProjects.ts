@@ -349,6 +349,142 @@ export const seedProjects: AgentProject[] = [
     unknownFields: ['repository']
   },
   {
+    id: 'oneonta-fantasy-rankings',
+    recordsWorkspace: 'oneonta-rankings',
+    name: 'Oneonta Fantasy',
+    subtitle: 'Oneonta Weekly Fantasy Rankings: public league-wide rankings site',
+    callsign: 'ONEONTA-RANK',
+    category: 'Fantasy Sports Automation',
+    status: 'Building',
+    priority: 'High',
+    objective: 'Publish league-wide weekly fantasy football rankings tuned to the Oneonta league’s custom scoring at oneontafantasy.live.',
+    missionBrief: 'A Lovable-built TanStack Start site that renders every ranking from one data module (src/data/rankings.ts), so a weekly refresh only swaps ranking data and metadata, never layout. The cockpit Rankings tab shows the current week.',
+    customerNeed: 'League managers want one trusted, mobile-friendly weekly ranking that reflects 6-point passing TDs and the league’s other scoring rules, without logging in.',
+    successCriteria: [
+      'oneontafantasy.live serves the current week’s rankings with no login.',
+      'Each weekly refresh changes only src/data/rankings.ts (week, updatedAt, ranking arrays).',
+      'Rankings data is refreshed by Tuesday 8:00 AM ET every week of the season.',
+      'No injury status or consensus trend is shown unless verified in that week’s data.'
+    ],
+    currentBlockers: [
+      'The scheduled refresh cannot read ranking sources yet: the cloud environment\u2019s network policy blocks fantasypros.com, si.com, and draftsharks.com, so each run stops without pushing.'
+    ],
+    repository: {
+      provider: 'github',
+      url: 'https://github.com/recaliendo/oneonta-analytics-hub',
+      label: 'oneonta-analytics-hub',
+      reachability: 'verified'
+    },
+    safetyNotes: [
+      'The repository is connected to Lovable: never force-push or rewrite pushed history on main, or the Lovable project history is lost.',
+      'Keep weekly data changes inside src/data/rankings.ts so a refresh cannot break the published layout.',
+      'Cite sources (FantasyPros, Sports Illustrated) without copying long source text.'
+    ],
+    accent: 'blue',
+    tags: ['Fantasy Football', 'Rankings', 'Lovable', 'TanStack Start', 'Public site'],
+    connectors: [
+      {
+        id: 'oneonta-github',
+        type: 'github',
+        label: 'GitHub Source',
+        url: 'https://github.com/recaliendo/oneonta-analytics-hub',
+        status: 'connected',
+        environment: 'production',
+        lastChecked: '2026-10-02',
+        dataSource: 'Private repository recaliendo/oneonta-analytics-hub (main)',
+        description: 'Source repository verified: TanStack Start + React 19 + Tailwind, with all rankings in src/data/rankings.ts.'
+      },
+      {
+        id: 'oneonta-live-site',
+        type: 'website',
+        label: 'Live Site',
+        url: 'https://oneontafantasy.live/',
+        status: 'unknown',
+        environment: 'live',
+        dataSource: 'Public custom domain',
+        description: 'Public rankings site for league managers.',
+        reason: 'The domain is registered here as the production site, but no uptime or deploy check has run from this dashboard.',
+        nextStep: 'Open the live site and confirm it shows the same week as the Rankings tab.'
+      },
+      {
+        id: 'oneonta-lovable',
+        type: 'custom',
+        label: 'Lovable Project',
+        url: 'https://lovable.dev/projects/0d9d7f52-9d10-4c86-af5b-8cf1900980c3',
+        status: 'unknown',
+        environment: 'production',
+        dataSource: 'Lovable project linked from the repository README',
+        description: 'Lovable editor that syncs two-way with the main branch.',
+        reason: 'The link is in the repository; whether Lovable publishes the custom domain is not verified.',
+        nextStep: 'Confirm in Lovable that oneontafantasy.live is the published domain for this project.'
+      }
+    ],
+    launchActions: [
+      {
+        id: 'oneonta-live-site',
+        label: 'Open Live Site',
+        type: 'url',
+        target: 'https://oneontafantasy.live/',
+        description: 'Open the public Oneonta Weekly Fantasy Rankings site.'
+      },
+      {
+        id: 'oneonta-repo',
+        label: 'Open Repo',
+        type: 'url',
+        target: 'https://github.com/recaliendo/oneonta-analytics-hub',
+        description: 'Open the oneonta-analytics-hub source repository.'
+      },
+      {
+        id: 'oneonta-rankings-data',
+        label: 'Open Rankings Data',
+        type: 'url',
+        target: 'https://github.com/recaliendo/oneonta-analytics-hub/blob/main/src/data/rankings.ts',
+        description: 'Open the single data module the weekly refresh replaces.'
+      },
+      {
+        id: 'oneonta-lovable-editor',
+        label: 'Open Lovable Editor',
+        type: 'url',
+        target: 'https://lovable.dev/projects/0d9d7f52-9d10-4c86-af5b-8cf1900980c3',
+        description: 'Open the Lovable project that publishes the site.'
+      }
+    ],
+    nextActions: [
+      'Confirm oneontafantasy.live is published from this repository’s Lovable project.',
+      'Allow fantasypros.com and si.com in the cloud environment\u2019s Network access so the Tuesday refresh can read sources.',
+      'Merge the rankings data guardrail test (oneonta-analytics-hub PR #1) so the refresh gate lives on main.',
+      'Add the league’s exact rushing, receiving, long-play, and D/ST scoring rules to the scoring lens.',
+      'Refresh this dashboard’s Rankings snapshot (src/data/oneontaRankings.ts) after each weekly update.'
+    ],
+    agents: [
+      {
+        id: 'oneonta-weekly-refresh',
+        name: 'Weekly Rankings Refresh',
+        callsign: 'REFRESH-ONE',
+        origin: 'Claude Code',
+        role: 'Weekly rankings data update',
+        status: 'Needs Configuration',
+        description: 'Claude Code routine, Tuesdays 7:23 AM ET (Sept\u2013Jan): rewrites only src/data/rankings.ts (week, updatedAt, and the QB, RB, WR, TE, K, D/ST, and FLEX lists, with QBs reordered for 6-point passing TDs), passes the data guardrail and build, then pushes to main. It stops without pushing if it cannot read current sources.',
+        tags: ['Weekly', 'Data module', 'Tuesday 8 AM ET'],
+        repoUrl: 'https://github.com/recaliendo/oneonta-analytics-hub',
+        launchActions: []
+      },
+      {
+        id: 'oneonta-site-qa',
+        name: 'Site QA',
+        callsign: 'QA-ONE',
+        origin: 'Hybrid',
+        role: 'Build, test, and publish checks',
+        status: 'Draft',
+        description: 'Runs the site’s lint, vitest routing test, and build before a refresh is pushed to main, then checks the live site shows the new week.',
+        tags: ['QA', 'vitest', 'Publish'],
+        repoUrl: 'https://github.com/recaliendo/oneonta-analytics-hub',
+        launchActions: []
+      }
+    ],
+    unknownFields: ['localPath']
+  },
+  {
     id: 'yahoo-fantasy-manager',
     name: 'Yahoo Fantasy Manager',
     subtitle: 'Fantasy football league intelligence and reviewed roster moves',

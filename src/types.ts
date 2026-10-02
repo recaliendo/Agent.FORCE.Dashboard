@@ -307,8 +307,11 @@ export interface AgentProject {
   safetyNotes?: string[];
   repository?: ProjectRepository;
   unknownFields?: string[];
-  /** A private records workspace shown as the cockpit's Records tab (e.g. OurFamilyWizard). */
-  recordsWorkspace?: 'ofw';
+  /**
+   * A project-specific workspace shown as an extra cockpit tab: 'ofw' is the private
+   * OurFamilyWizard Records tab; 'oneonta-rankings' is the Oneonta weekly Rankings tab.
+   */
+  recordsWorkspace?: 'ofw' | 'oneonta-rankings';
 }
 
 declare global {

@@ -176,6 +176,9 @@ export const STOPWORDS = new Set([
   'message', 'messages', 'msg', 'msgs', 'email', 'emails', 'thread', 'threads', 'conversation',
   'conversations', 'ofw', 'ourfamilywizard', 'record', 'records', 'everything', 'anything', 'something',
   'refer', 'referring', 'referred', 'reference', 'references', 'ex', 'may', 'might', 'must', 'shall',
+  // Instructions typed as prompts ("review medical communications", "summarize school emails").
+  'review', 'reviewing', 'summarize', 'summarise', 'summary', 'analyze', 'analyse', 'analysis',
+  'check', 'examine', 'go', 'communication', 'communications', 'correspondence', 'comms',
 ]);
 
 /** Shorthand people type, mapped to the word the record would use. */

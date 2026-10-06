@@ -194,6 +194,14 @@ desktop shortcut kept building that folder even after the code was pulled somewh
 
 ## Repair a broken install
 
+Simplest fix: double-click `scripts/Fix-AgentFORCE.cmd` (it can be run from anywhere, e.g. a
+Downloads copy). It clones a fresh copy of `main` into the usual
+`OneDrive\Documents\Agent.FORCE.Dashboard` folder, keeps the old folder as a dated `.old-` backup,
+copies `.env` and `ofw.local.json` across, installs, builds, and opens the app, so existing
+shortcuts keep working unchanged.
+
+Alternatively:
+
 If the launcher reports a missing file (for example `Cannot find module './OfwPanel'`), the folder
 it builds is an out-of-date copy. Clone a fresh copy outside OneDrive and run the repair script:
 

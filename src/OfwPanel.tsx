@@ -82,9 +82,16 @@ export function OfwPanel() {
     };
   }
 
-  function search(page=1,start=0) {
+  /** Connect on first use, so a question typed before clicking Connect still gets an answer. */
+  async function ensureConnected() {
+    if (connected) return true;
+    return (await run('connect')) !== undefined;
+  }
+
+  async function search(page=1,start=0) {
+    if (tab==='messages' && !q.trim()) { setError('Type a question or words to search for.'); return; }
+    if (!(await ensureConnected())) return;
     if (tab==='messages') {
-      if (!q.trim()) { setError('Type a question or words to search for.'); return; }
       void run('nlsearch', { query: q.trim(), mode, limit: 25, ...messageFilters() });
       return;
     }
@@ -97,11 +104,12 @@ export function OfwPanel() {
     if (snapshot?.action === 'nlsearch') void run('nlsearch', snapshot.filters);
   }
 
-  function analyze(task: OfwAnalysisTask) {
+  async function analyze(task: OfwAnalysisTask) {
     const bridge = window.agentForce;
     if (!bridge?.ofwAnalyze) return;
     const question = q.trim();
     if (task === 'answer' && !question) { setError('Type a question for Qwen to answer.'); return; }
+    if (!(await ensureConnected())) return;
     cancelRef.current?.();
     const requestId = makeId();
     const label = ANALYSIS_ACTIONS.find((a) => a.task === task)?.label ?? task;
@@ -169,7 +177,7 @@ export function OfwPanel() {
     <p className="ofw-help">Unread bodies stay private until you open them in OFW. Each sync checks recent messages and continues older history; repeat if the sync reports incomplete.</p>
     <div className="ofw-tabs"><Tabs items={recordTabs.map(([id,label])=>({id,label}))} activeId={tab} onChange={(id)=>{setTab(id);setResult(null);setDetail(null);setError('');}} label="OFW record types" /></div>
 
-    <form id={`ofw-record-types-${tab}`} className="ofw-search" role="tabpanel" aria-labelledby={`ofw-record-types-tab-${tab}`} onSubmit={e=>{e.preventDefault();search();}}>
+    <form id={`ofw-record-types-${tab}`} className="ofw-search" role="tabpanel" aria-labelledby={`ofw-record-types-tab-${tab}`} onSubmit={e=>{e.preventDefault();void search();}}>
       {tab==='messages' && <>
         <div className="ofw-nl-mode" role="radiogroup" aria-label="Search mode">
           {([['natural','Ask a question'],['exact','Exact words']] as const).map(([id,label]) =>
@@ -188,14 +196,14 @@ export function OfwPanel() {
         {(msgSince||msgUntil) && <button type="button" onClick={()=>{setMsgSince('');setMsgUntil('');}} disabled={busy}>Clear dates</button>}
       </>}
       {tab==='calendar' && <><label>From<input type="date" value={since} onChange={e=>updateDateRange({since:e.target.value,until})}/></label><label>Through<input type="date" value={until} onChange={e=>updateDateRange({since,until:e.target.value})}/></label><button type="button" onClick={resetDateRange} disabled={busy}>Reset to last 60 days</button></>}
-      <button disabled={busy||!connected} type="submit"><Search size={16}/>{tab==='messages'?'Search':'Load records'}</button>
+      <button disabled={busy||!desktop} type="submit"><Search size={16}/>{tab==='messages'?'Search':'Load records'}</button>
     </form>
 
     {tab==='messages' && <div className="ofw-nl-actionsbar">
       <span className="ofw-nl-label"><Sparkles size={15}/> Local Qwen</span>
       {ANALYSIS_ACTIONS.map((a) => <button key={a.task} type="button" title={a.hint}
-        disabled={!connected || busy || analysisRunning || !window.agentForce?.ofwAnalyze || (a.task==='answer' && !q.trim())}
-        onClick={()=>analyze(a.task)}>{a.label}</button>)}
+        disabled={!desktop || busy || analysisRunning || !window.agentForce?.ofwAnalyze || (a.task==='answer' && !q.trim())}
+        onClick={()=>void analyze(a.task)}>{a.label}</button>)}
       <span className="ofw-help">{qwenReady===false
         ? 'Local Qwen is not responding — search still works. Start it with pnpm qwen:start.'
         : 'Reads only the most relevant messages, on this computer, and cites each one.'}</span>

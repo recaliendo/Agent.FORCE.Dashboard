@@ -288,7 +288,7 @@ export const seedProjects: AgentProject[] = [
   {
     id: 'legal-ops-console',
     recordsWorkspace: 'ofw',
-    name: 'DivorceAgent',
+    name: 'Co-Parenting Copilot',
     subtitle: 'Document and case operations',
     callsign: 'EVIDENCE-DECK',
     category: 'Document and Case Operations',

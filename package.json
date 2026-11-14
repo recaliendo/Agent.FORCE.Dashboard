@@ -22,7 +22,7 @@
     "test:sse": "tsc -p tsconfig.node.json && node --test tests/sse-parser.test.mjs"
   },
   "dependencies": {
-    "@modelcontextprotocol/client": "2.0.0",
+    "@modelcontextprotocol/client": "2.4.0",
     "@vitejs/plugin-react": "latest",
     "concurrently": "latest",
     "cross-env": "latest",

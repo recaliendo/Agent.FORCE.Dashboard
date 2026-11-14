@@ -311,7 +311,7 @@ export interface AgentProject {
    * A project-specific workspace shown as an extra cockpit tab: 'ofw' is the private
    * OurFamilyWizard Records tab; 'oneonta-rankings' is the Oneonta weekly Rankings tab.
    */
-  recordsWorkspace?: 'ofw' | 'oneonta-rankings';
+  recordsWorkspace?: 'ofw' | 'oneonta-rankings' | 'pentestpal';
 }
 
 declare global {
@@ -321,6 +321,7 @@ declare global {
       revealPath: (target: string) => Promise<{ ok: boolean; error?: string }>;
       runCommand: (command: string) => Promise<{ ok: boolean; output?: string; error?: string }>;
       getPlatform: () => Promise<string>;
+      pentestpal: (request: import('../shared/pentestpal').SecurityRequest) => Promise<import('../shared/pentestpal').SecurityResponse>;
       ofw: (action: string, input?: Record<string, unknown>) => Promise<{ ok: boolean; data?: unknown; error?: string }>;
       qwenConfig: () => Promise<QwenConfigResult>;
       qwenHealth: () => Promise<QwenResult>;

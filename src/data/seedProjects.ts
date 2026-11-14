@@ -2,6 +2,24 @@ import type { AgentProject } from '../types';
 
 export const seedProjects: AgentProject[] = [
   {
+    id: 'pentestpal', name: 'PenTestPal', subtitle: 'Scoped web and API security validation',
+    callsign: 'PENTESTPAL', category: 'Security', status: 'Needs QA', priority: 'High',
+    objective: 'Validate authorized runtime behavior and turn evidence into actionable remediation.',
+    missionBrief: 'Prepare an exact scope, review the offline request plan, run bounded checks and inspect evidence.',
+    customerNeed: 'Operators need a clear path from authorized testing to findings, fixes and comparable retests.',
+    successCriteria: ['Every executed request matches the reviewed scope.', 'Findings retain evidence and remediation prompts.', 'Incomplete checks remain visible.'],
+    currentBlockers: [], accent: 'green', tags: ['Security', 'Python', 'Evidence', 'Web/API'],
+    recordsWorkspace: 'pentestpal',
+    repository: { provider: 'github', url: 'https://github.com/recaliendo/PenTestPal', label: 'PenTestPal repository', reachability: 'verified' },
+    connectors: [{ id: 'pentestpal-engine', type: 'local_config', label: 'Local Python engine', status: 'needs_setup',
+      description: 'Python 3.11+ and the PenTestPal checkout. Live configuration is shown in the Security workspace.',
+      reason: 'Engine availability is checked in the desktop workspace.', nextStep: 'Open Security and check the engine connection.' }],
+    agents: [], launchActions: [{ id: 'pentestpal-docs', type: 'url', label: 'Usage guide',
+      target: 'https://github.com/recaliendo/PenTestPal/blob/main/docs/usage.md', description: 'Scope contracts, credentials and retest rules.' }],
+    nextActions: ['Open Security and run the synthetic local demo.', 'Prepare and review a scope before testing an authorized application.'],
+    safetyNotes: ['Credentials stay in the desktop process environment.', 'Runtime evidence remains local and is separate from Council readiness scores.']
+  },
+  {
     id: 'talentquest',
     name: 'TalentQuest',
     subtitle: 'Talent intelligence and people analytics',

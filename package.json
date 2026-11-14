@@ -26,7 +26,7 @@
     "@vitejs/plugin-react": "latest",
     "concurrently": "latest",
     "cross-env": "latest",
-    "electron": "^44.9.3",
+    "electron": "latest",
     "electron-builder": "latest",
     "lucide-react": "latest",
     "react": "latest",

@@ -8,6 +8,8 @@ The visual system is an original galactic command-center interface with graphite
 
 ## Core UX
 
+PenTestPal now has a dedicated **Security** workspace: define scope, review the offline request plan, execute authorized checks, stop runs, and review findings, coverage and remediation prompts. See [desktop setup and workflow](docs/pentestpal.md).
+
 1. Project Launch Bay: choose the agent project to operate.
 2. Project Cockpit: use a sticky project command header, Next Best Action, and workflow tabs for Overview, Agents, Connectors, Daily Report, Council, Launch Actions, and Activity.
 3. Connector Hub: project-scoped non-secret references for GitHub, Supabase, Netlify, Stripe, and custom systems.

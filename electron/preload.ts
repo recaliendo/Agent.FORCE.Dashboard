@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('agentForce', {
   revealPath: (target: string) => ipcRenderer.invoke('agent-force:reveal-path', target),
   runCommand: (command: string) => ipcRenderer.invoke('agent-force:run-command', command),
   getPlatform: () => ipcRenderer.invoke('agent-force:get-platform'),
+  pentestpal: (request: unknown) => ipcRenderer.invoke('agent-force:pentestpal', request),
   ofw: (action: string, input?: Record<string, unknown>) => ipcRenderer.invoke('agent-force:ofw', action, input),
   qwenConfig: () => ipcRenderer.invoke('agent-force:qwen-config'),
   qwenHealth: () => ipcRenderer.invoke('agent-force:qwen-health'),

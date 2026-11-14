@@ -35,6 +35,7 @@ import { CouncilCenter, type CouncilCenterView } from './components/CouncilCente
 import { QwenChatPanel } from './components/QwenChatPanel';
 import { OfwPanel } from './OfwPanel';
 import { OneontaRankingsPanel } from './components/OneontaRankingsPanel';
+import { PenTestPalPanel } from './components/PenTestPalPanel';
 import { ActionCard, Badge, EmptyState, ListRow, StatTile, Tabs } from './components/ui/Primitives';
 import { generateCouncilRun, summarizeCouncilRun } from './council/councilEngine';
 import { safeReadCouncilRuns, safeWriteCouncilRuns } from './council/councilStorage';
@@ -697,7 +698,7 @@ function ProjectCockpit({ project, onBack, onSwitchProject, onLaunch, consoleLin
     setSavedReports(readSavedReports(project.id));
     setCouncilRuns(safeReadCouncilRuns(project.id));
     setCopyStatus('');
-    setActiveTab('overview');
+    setActiveTab(project.recordsWorkspace === 'pentestpal' ? 'records' : 'overview');
     setRequestedCouncilView('findings');
     setDrawer(null);
     setToast('');
@@ -827,6 +828,14 @@ function ProjectCockpit({ project, onBack, onSwitchProject, onLaunch, consoleLin
     handleOpenTab('council');
   }
 
+  const chatPanel = <QwenChatPanel
+    project={project}
+    onActivity={(message, detail) => {
+      addActivity(message.includes('failed') ? 'error' : 'launch_action', message, detail);
+      notify(message);
+    }}
+  />;
+
   return (
     <section className="cockpit page-stage">
       <ActionToast message={toast} />
@@ -861,15 +870,11 @@ function ProjectCockpit({ project, onBack, onSwitchProject, onLaunch, consoleLin
           }) : undefined}
         />
 
-        <QwenChatPanel
-          project={project}
-          onActivity={(message, detail) => {
-            addActivity(message.includes('failed') ? 'error' : 'launch_action', message, detail);
-            notify(message);
-          }}
-        />
+        {project.recordsWorkspace === 'pentestpal'
+          ? <details className="ptp-assistant"><summary>Ask Agent FORCE · optional project guidance</summary>{chatPanel}</details>
+          : chatPanel}
 
-        <CockpitTabs activeTab={activeTab} onChange={(tab) => { setActiveTab(tab); setDrawer(null); }} badges={tabBadges} recordsLabel={project.recordsWorkspace === 'oneonta-rankings' ? 'Rankings' : project.recordsWorkspace ? tabLabel('records') : null} />
+        <CockpitTabs activeTab={activeTab} onChange={(tab) => { setActiveTab(tab); setDrawer(null); }} badges={tabBadges} recordsLabel={project.recordsWorkspace === 'pentestpal' ? 'Security' : project.recordsWorkspace === 'oneonta-rankings' ? 'Rankings' : project.recordsWorkspace ? tabLabel('records') : null} />
 
         <section
           id={`project-cockpit-workflows-${activeTab}`}
@@ -878,6 +883,7 @@ function ProjectCockpit({ project, onBack, onSwitchProject, onLaunch, consoleLin
           aria-labelledby={`project-cockpit-workflows-tab-${activeTab}`}
         >
           {activeTab === 'records' && project.recordsWorkspace === 'ofw' && <OfwPanel />}
+          {activeTab === 'records' && project.recordsWorkspace === 'pentestpal' && <PenTestPalPanel />}
           {activeTab === 'records' && project.recordsWorkspace === 'oneonta-rankings' && (
             <OneontaRankingsPanel project={project} onLaunch={onLaunch} />
           )}

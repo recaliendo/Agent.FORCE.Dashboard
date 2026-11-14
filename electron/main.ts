@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import { exec } from 'node:child_process';
+import { PenTestPalService, validateSecurityRequest } from './pentestpal.js';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -16,6 +17,7 @@ const __dirname = path.dirname(__filename);
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
 const allowCommands = process.env.AGENT_FORCE_ALLOW_COMMANDS === 'true';
 let ofwConnection: OfwConnection;
+let securityService: PenTestPalService | undefined;
 const appFileUrl = pathToFileURL(path.join(__dirname, '../../dist/index.html')).href;
 const devServerUrl = isDev ? process.env.VITE_DEV_SERVER_URL : undefined;
 
@@ -201,6 +203,29 @@ ipcMain.handle('agent-force:run-command', async (event, command: unknown) => {
 });
 
 ipcMain.handle('agent-force:get-platform', async (event) => (trusted(event) ? process.platform : 'unknown'));
+
+ipcMain.handle('agent-force:pentestpal', async (event, input: unknown) => {
+  if (!trusted(event)) return UNTRUSTED;
+  try {
+    const request = validateSecurityRequest(input);
+    const service = securityService ??= new PenTestPalService(path.join(app.getPath('userData'), 'pentestpal'));
+    let data;
+    switch (request.action) {
+      case 'plan': data = await service.prepare(request.scopeText); break;
+      case 'demo': data = service.start(request.fixed ? 'fixed-demo' : 'demo'); break;
+      case 'run': data = service.start('assessment', request.planId, request.authorized, request.previousId); break;
+      case 'stop': data = service.stop(request.runId); break;
+      case 'reveal': shell.showItemInFolder(service.reveal(request.runId)); data = service.snapshot(); break;
+      default: data = service.snapshot();
+    }
+    return { ok: true, data };
+  } catch (error) {
+    // Only controlled service messages reach the renderer; no native exception/path/credential dump.
+    const message = error instanceof Error ? error.message : '';
+    const known = /^(Invalid request\.|Report exceeds|Unsupported |A plan or run|Set PENTESTPAL_ROOT|Plan rejected\.|Review a current plan|Select a prior report|This run is no longer active|Unknown run\.)/;
+    return { ok: false, error: known.test(message) ? message : 'PenTestPal could not complete this action. Check local configuration and writable storage.' };
+  }
+});
 
 ipcMain.handle('agent-force:qwen-config', async (event) => {
   if (!trusted(event)) return UNTRUSTED;
@@ -464,6 +489,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  securityService?.shutdown();
   stopManagedLocalLlm();
   void ofwConnection?.close();
 });
